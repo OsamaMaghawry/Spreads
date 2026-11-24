@@ -98,7 +98,7 @@ One line on the page, no price, no date. See §4.
 | Barchart Premier | $29.95/mo; $239.95/yr; 30-day trial; every options tool in this one tier | **verified** — vendor page | 2026-09-02 |
 | Barchart Plus | $9.99/mo — no options tools at all | **verified** — same page | 2026-09-02 |
 | Barchart Free | $0, metered at 20 page views a day | **verified** — same page | 2026-09-02 |
-| Tiblio | $34.95/mo, $349.50/yr, $1 for 7 days; screen → order → hold on Alpaca | reported — host blocked | 2026-09-02 |
+| Tiblio | $34.95/mo, $349.50/yr, $1 for 7 days (daytradereview.com); or "Explore" $38/mo and a $99/mo top plan (nexusfi.com, search snippet). Alpaca support now unconfirmed (see `positioning.md`) | reported — host blocked, sources disagree | 2026-11-17 |
 | Option Alpha | from $39/mo, bot builder included | reported — host blocked | 2026-09-02 |
 | OptionStrat | $39.99/mo Live Tools | reported — host blocked | 2026-08-31 |
 | QuantWheel | ~$37/mo Advanced; sources disagree ($19/$31 elsewhere) | reported, self-inconsistent | 2026-09-02 |
@@ -185,3 +185,19 @@ accounts. A $59 subscriber counts once.
   signal this file has ever had.
 - The published fee schedule read → a schedule saying anything but $29 is
   a launch blocker.
+
+## 8. 2026-11-17 run — nothing moved the price
+
+Nine decisions stand; none reopened. (The 3 Nov run's note to the same
+effect sat on an unmerged branch; this replaces it.)
+
+- **Tiblio** may be $38 rather than $34.95, with a $99 tier above it. Both
+  are `reported`. Either way $29 stays under the nearest direct competitor
+  and a dollar under Barchart Premier; no reason to move.
+- **Alpaca's own MCP server is free** to any Alpaca user (`verified`,
+  `positioning.md`). So a Claude connector must never be the reason for a
+  price, nor a line that justifies Live. It can sit inside Paper or Live
+  as a convenience; it is not a pricing input.
+- **What still has no evidence:** demand. Paying = 0, four signups ever, and
+  nothing a stranger can buy is on `main` beyond the 4 Sep product. Decision
+  3's switch date still has no release behind it (backlog #1).

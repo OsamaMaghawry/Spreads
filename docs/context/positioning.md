@@ -57,10 +57,11 @@ traders want, and that gap narrows each year.
 
 ### The closest competitor, named
 
-**Tiblio**, roughly $35/month, is the nearest thing to a direct competitor and
-should be treated as one. It screens spreads and iron condors, connects by OAuth
-to Schwab, Tradier, TradeStation, tastytrade **and Alpaca**, routes orders to the
-connected broker, and tracks open and closed positions with profit and loss and
+**Tiblio**, roughly $35–38/month (reported; see the 2026-11-17 note below), is
+the nearest thing to a direct competitor and should be treated as one. It
+screens spreads and iron condors, connects by OAuth to Schwab, Tradier,
+TradeStation, tastytrade and — **unverified as of 2026-11-17** — Alpaca, routes
+orders to the connected broker, and tracks open and closed positions with profit and loss and
 per-strategy win rates. That is screen → order → hold → measure, on our broker,
 already shipping and cheaper than most of the analytics layer.
 
@@ -137,6 +138,36 @@ computed against peak concurrent collateral — is the claim no competitor's own
 documentation contradicts. Marketing should lead with what happens *after* the
 fill, not with the completeness of the chain, because the second claim is
 falsifiable in one search and the first is not.
+
+## Changes since August (vp-product, 2026-11-17)
+
+Folds in the 10 Nov run's note, which sat on an unmerged branch.
+
+- **Our shipped product has not changed since early September.** Everything
+  built since is on `staging`, and most of it is an administrator-only stock
+  day-trading terminal that no customer can reach. So every verdict in the
+  edge table above stands as written, including "end-of-session assignment
+  de-risking: not yet built". Nothing here may be claimed from staging.
+- **Alpaca ships its own MCP server — now `verified`.** Alpaca announced an
+  official MCP server on 20 Nov 2025 (alpaca.markets blog) and documents it
+  at `docs.alpaca.markets/us/docs/alpaca-mcp-server` (fetched 2026-11-17):
+  stocks, options and crypto orders **including multi-leg spreads**, option
+  chains with Greeks, works with Claude Desktop and Claude Code, paper by
+  default. Our Claude connector (`supabase/functions/mcp`, unlaunched; the
+  `/connect` page is on staging only) is **read-only and narrower** than the
+  broker's own. Its only distinct claim is that it returns positions grouped
+  as structures with booked P/L. Do not market "works with Claude" as an
+  edge; anyone with an Alpaca key already has more.
+- **Tiblio's Alpaca link is now unconfirmed.** This file said Tiblio connects
+  to Alpaca by OAuth; a search this run found no source for it, and one
+  undated review (daytradereview.com) describes Tiblio as Tradier-only, with
+  a Tradier partnership press release. Price sources disagree: $34.95/mo
+  single tier (that review) vs "Explore" $38/mo and a $99/mo top plan
+  (nexusfi.com listing, search snippet only — host 403). All `reported`.
+  `tiblio.com` still refuses at CONNECT (retested 2026-11-17). If Tiblio is
+  not on Alpaca, the "two competitors on our broker" line above weakens to
+  one (Puthouse, also unverified) — but it is not a reason to plan on broker
+  choice as an advantage until checked at source.
 
 ## Honest weaknesses
 

@@ -8,26 +8,90 @@ recorded below, as prominently as additions.
 Every entry carries: the user problem in the user's words, its evidence, the
 smallest test that could disprove it, the kill criterion, and a cost guess.
 
-Last run: **2026-09-01** (vp-product, Tuesday cadence).
+Last run: **2026-11-17** (vp-product, Tuesday cadence). Previous ranked run
+on `main`: 2026-09-01.
+
+## Reconciliation — 2026-11-17 (read before the proposals)
+
+**First, a process fault this run found.** The Tuesday runs of 3 Nov
+(`origin/claude/youthful-hypatia-s80cvu`, `92cd176`) and 10 Nov
+(`origin/claude/youthful-hypatia-ekhtg5`, `0d799aa`), and every weekday
+end-of-day run (`magical-bohr-*`), pushed to their own session branches and
+**none was merged to `main`**. Each run started from `main`, so each began
+from the 1 Sep backlog: 3 Nov killed `scan_runs` and opened a release
+proposal; 10 Nov, not seeing that, kept `scan_runs` open and opened nothing.
+This file folds both in and is the current state. Unless product docs get a
+merge path (as content has), next Tuesday will repeat it — owner decision 1
+in the email.
+
+**What shipped this week (10–17 Nov).** Read from `git log origin/main`,
+`origin/staging:docs/ops/shipped.md` and the end-of-day notes on the
+branches above.
+
+- **`main`:** blog posts 55–63 and SEO edits only. The last commit to
+  `src/` or `supabase/functions/` on `main` that changed product behaviour
+  predates October; `optionScan.ts` and `ResultsTable.jsx` on `main` are
+  what the 1 Sep run read.
+- **`staging`:** 19 shipped lines dated 8–16 Nov. Fifteen are the
+  administrator-only trading terminal (`/terminal`, behind `AdminOnly` and
+  the `LAB` flag, `src/App.jsx:79`): gamma screens, overnight hotkeys, the
+  P/L tab, self-test tooling. Two touch the credit-spread product a user
+  could buy: a covered call partly backed by a long call no longer shows the
+  shares' break-even (`f10088f`), and option-chain days-to-expiry count on
+  New York's calendar (`944798c`). Both are correctness fixes on staging,
+  not on `main`.
+- **Staging is 1,571 commits ahead of `main`** (was ~1,416 on 5 Nov).
+
+**Funnel** (`docs/growth/metrics/2026-11-16.json`): 4 signed up ever, 0 in the
+last 7 days, 3 connected, 3 traded, 1 traded live, **0 paying**. Search
+Console 28 days: 2 clicks, 418 impressions. Unchanged since 2 Nov.
+
+Proposal by proposal:
+
+| # | Proposal | Verdict | Evidence |
+| --- | --- | --- | --- |
+| 1 | Release path: what of staging a stranger can pay for | **Left** (opened 3 Nov on an unmerged branch; carried here) | Nothing promoted from staging this week; billing still hidden (`billing_visible`, 3 Sep). Staging gap grew by ~155 commits in 12 days, almost all admin-only |
+| 2 | Quoted exit width on scan results | **Left.** Not shipped, not half-shipped | `git diff origin/main origin/staging -- _shared/optionScan.ts` is empty; the only `ResultsTable.jsx` change hides the Trade button for read-only accounts. No width, bid or ask column on either branch. `wideQuote()` (`src/lib/holdingStrategies.js`, staging) flags wide quotes on the held-position Protect/Repair dialog only — the after-fill half, not the scan half |
+| 3 | Probability-of-profit column | **Left** | No POP in `src/` or `optionScan.ts` on either branch; `impliedVol()` still falls back to a silent `0.25` (`optionScan.ts:31-33`, staging) |
+| — | Record what was scanned (`scan_runs`) | **Killed** (3 Nov kill confirmed) | See Killed. Four users ever; a scan log has no denominator |
 
 ## Open proposals
 
-**Three of five slots used.** Two deliberately left empty — this run killed one
-proposal and found that a second's test rested on data that does not exist, so
-the honest state is fewer, better-tested entries, not five.
+**Three of five slots used.** No addition: nothing new in funnel data,
+support or the owner's research folder (`docs/product/research/` holds only
+its README) supports a fourth, and any user-facing feature reaches a user only through #1
+anyway. No teardown this run — Tiblio, the one that matters, is still
+unreachable (`reachable.md`, retested today).
 
-What changed this run, in one line each:
+Ranking note: #1 scores on activation because nothing on staging can count
+toward "first trade" or "paying" until it reaches `main`; #2 and #3 are
+cheap offline tests that need no release, so they keep their places.
 
-- **#1 re-scoped and strengthened.** It now has a *real user*, not a
-  constructed one, and the mechanism moved from open interest to quoted
-  width — which is cheaper to measure and is what actually cost the user money.
-- **#2 (was #3) test made cheaper** and given a second kill criterion found in
-  our own `impliedVol` code.
-- **#3 is new** and exists because this run discovered that no scan is
-  recorded anywhere.
-- **Universe demand instrumentation: killed.** See below.
+### 1. Decide what part of staging becomes the product people can pay for — and release it
 
-### 1. Show the executable exit cost on scan results (quoted width), and let the user floor it
+- **User problem:** none in a user's words; four users exist. This is a gap
+  in our own pipeline. The last step of activation — a live account, paying —
+  cannot happen on code that is not on `main`, and billing is not visible.
+- **Evidence — our repo, read 2026-11-17:** staging 1,571 commits ahead of
+  `main`; this week 15 of 19 staging lines are the admin-only terminal, a
+  stock day-trading tool that serves a different customer from the
+  credit-spread trader the positioning, pricing and blog are written for.
+  Two fixes this week (`f10088f` break-even, `944798c` DTE) correct numbers
+  a Live subscriber would see, and they sit unreleased. `plan-100.md`
+  targets 100 paying users by 31 Dec; 44 days remain, paying = 0.
+  `docs/ops/queue.md` on staging carries open head-of-trading findings
+  against the terminal, so "release all of staging" is not free.
+- **Smallest test:** the owner names the one thing a stranger can do on day
+  one of Live (the credit-spread desk as it stands, with this week's two
+  fixes; or the terminal), and agent-manager gates *that* scope. A scoping
+  decision; no build.
+- **Kill criterion:** the owner prefers to keep building on staging — then
+  kill this and move the 31 Dec date in `plan-100.md` to one with a release
+  in front of it. Either is a decision; drifting is not.
+- **Cost guess:** the decision, an hour. Release verification is
+  agent-manager's gate.
+
+### 2. Show the executable exit cost on scan results (quoted width), and let the user floor it
 
 - **User problem:** *"I could not close my AMD spread. I watched it for five
   minutes with the price on screen sitting right where I wanted, and nothing
@@ -68,7 +132,7 @@ What changed this run, in one line each:
   it as a share of the credit. Nothing ships; nothing is logged; the numbers
   are already in the response. Repeat on three different days.
   *(The previous version of this test — "log OI for one week of scans" —
-  assumed a scan log. There isn't one. See proposal #3.)*
+  assumed a scan log. There isn't one, and the log proposal is now killed.)*
 - **Kill criterion:** if the summed quoted width on the median top-10
   candidate is under 15% of the credit, the exit give-up is noise against the
   trade's own economics and the column earns nothing — kill, and the AMD
@@ -78,11 +142,16 @@ What changed this run, in one line each:
   new data source. An OI floor on top of that is a further day and *does*
   need a new field plumbed from `/options/contracts`; propose it only if the
   width test comes back positive and width alone proves insufficient.
+- **Note carried from the 10 Nov end-of-day run (unmerged branch).** On
+  staging, the admin terminal reads open interest from Cboe's delayed-quotes
+  file (`8b12742`, `_shared/openInterest.ts`) because Alpaca's contract OI is
+  two sessions stale in the morning, and that file is personal-use only.
+  So an OI floor has no clean source for paying users; width-first stands.
 - **Hand-off, not mine:** whether `ask + $0.05` with no step cap is the right
   ceiling is a money-path question for `head-of-trading` / `agent-manager`,
   not a product one. Flagged, not investigated.
 
-### 2. Probability-of-profit column and sort
+### 3. Probability-of-profit column and sort
 
 - **User problem:** "The top result is always the spread right next to the
   money — I can't tell which of these I'd actually win." (Still constructed.
@@ -97,7 +166,7 @@ What changed this run, in one line each:
   Newly relevant: `positionWatch` (shipped 2026-08-31) now fires a
   `short_through_strike` **critical** alert whenever a short leg goes in the
   money. Whatever our ranking fronts, the watch will be emailing about it.
-- **Smallest test:** the same captured payload as #1 — every candidate already
+- **Smallest test:** the same captured payload as #2 — every candidate already
   carries `spot`, `strike`, `mid`, `expiry` per leg, and `impliedVol()` is an
   exported pure function. Compute POP offline and compare the POP-ranked
   top-10 against the RoR-ranked top-10. No new data, no logging, no deploy.
@@ -114,40 +183,22 @@ What changed this run, in one line each:
 - **Cost guess:** test ~a day; feature ~2 days, no new data source — *if*
   kill criterion 2 does not fire.
 
-### 3. Record what was scanned (the measurement three questions need)
-
-- **User problem:** none. This is not a user-facing proposal and scores zero
-  on the ranking criterion. It is here because this run discovered that we
-  cannot answer *any* question about how the screener is actually used, and
-  the owner should decide that knowingly rather than inherit it.
-- **Evidence — our code, read 2026-09-01:**
-  - `supabase/functions/scanEntries/index.ts` and `findEntry/index.ts` insert
-    **nothing**. A scan leaves no trace on the server.
-  - `scan_last_used` (migration `0006`) has primary key `(user_id, scope)` and
-    is **upserted on every scan** (`src/lib/scanPresets.js` `saveLastUsed`).
-    It is one row per user, overwritten each time — the most recent
-    configuration, never a history.
-  - Consequence: "what share of scans use a custom universe", "what share of
-    top-10 results are illiquid", "does POP ranking change what people trade"
-    are all unanswerable from the database. `funnel-instrumentation` cannot be
-    commissioned on any screener question today. This is what killed the
-    universe proposal below.
-- **Smallest test:** there isn't one — this *is* the instrument. The smallest
-  **version** is one table and one insert: `scan_runs(user_id, scope, strategy,
-  universe, ticker_count, candidate_count, top jsonb, created_at)`, where
-  `top` is the first ten candidates with legs, bid, ask and RoR. Written from
-  `scanEntries` with its own failure swallowed, exactly the pattern
-  `_shared/orderAttempts.ts` already established for `order_attempts`.
-- **Kill criterion:** if the owner would not act differently on any of the
-  three answers above, it is measurement for its own sake — kill it and accept
-  that screener proposals stay argued from competitor behaviour rather than
-  our own usage.
-- **Cost guess:** ~half a day of code. **Not free:** it is a migration plus an
-  edge-function deploy, so it needs the owner's explicit approval and the
-  staging path, per `AGENTS.md`. Ranked last precisely because its direct
-  effect on activation is zero.
-
 ## Killed
+
+### Record what was scanned (`scan_runs`) — killed 2026-11-03, confirmed 2026-11-17
+
+Its own kill criterion: "if the owner would not act differently on any of
+the three answers, kill it." The 3 Nov run killed it on a branch that never
+reached `main`; this run confirms it with this week's numbers. The funnel
+holds **four signups ever, none in the last seven days**
+(`docs/growth/metrics/2026-11-16.json`), and billing is not open. A scan log
+on that base is the trap that killed universe instrumentation: no
+denominator, no time dimension. Proposals #2 and #3 are tested offline from
+the payload the browser already receives and do not need it. Revisit only
+if a screener decision needs usage data and there are enough users for it to
+mean something. The proposal text is in git history (`main`, this file
+before 2026-11-17).
+
 
 ### Universe demand instrumentation — killed 2026-09-01
 
@@ -169,10 +220,10 @@ the screener, with no denominator and no time dimension.
 
 So the test cannot disprove the proposal, and a proposal whose test cannot run
 is not a proposal — it is an opinion holding a slot. Producing the data it
-needs is proposal #3, which is now ranked on its own merits rather than
+needs was the `scan_runs` proposal (itself killed 2026-11-03), which was ranked on its own merits rather than
 smuggled in as somebody else's test.
 
 **Returned to `ideas.md`** ("Expand scan universe beyond the S&P 500 list"),
 where it keeps the verified competitor fact E8 attached to it. It comes back
-to this file when either proposal #3 ships and the number clears the bar, or a
+to this file when either a scan log ships and the number clears the bar, or a
 user says it in their own words in `growth/queue/`.
