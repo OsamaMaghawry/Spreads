@@ -182,3 +182,10 @@ Watch items from the 20 Nov review (none blocking):
 - Where the owner saw −$106.
 - Paused: the S&P 500 news-event test.
 - Not checked: overnight part-share orders at Alpaca.
+
+## Phone layout (24 Nov)
+- Below 640px wide the trade page renders `components/terminal/phone/PhoneTerminal.jsx` instead of the grid (owner-approved design: https://claude.ai/artifact/XiCna4NmCvCUfnzG8ZFSs9).
+- The owner's rules: **every send, close and cancel has a confirm step; every price/size change waits as "Not sent yet" until Confirm change**; tapping the chart does nothing (only the SL/TP/⇕ handles drag, `TradeLines.jsx`); prices and sizes can be typed or moved by arrows.
+- Orders go through the same server actions as the desktop: ticket via `allocate` + `order` (`phone/phoneSend.js`), closes via `runHotkey` exit, stops/targets via `protect`, order cancel/change via `orderActions.js` (shared with the desktop Orders tab).
+- Extended hours are the default (`exthours` account setting, also the desktop ticket's checkbox). Outside 9:30–16:00 a phone market order goes as a limit 0.5% through the touch (`lib/phoneOrder.js`); refused overnight and while closed. Brackets only in regular hours; otherwise exits go on after the fill while the app is open.
+- Open question to the owner: fire extended-hours stops server-side when no screen is open (today the stop guard fires only from an open terminal).
