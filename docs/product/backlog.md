@@ -55,6 +55,8 @@ Proposal by proposal:
 | 3 | Probability-of-profit column | **Left** | No POP in `src/` or `optionScan.ts` on either branch; `impliedVol()` still falls back to a silent `0.25` (`optionScan.ts:31-33`, staging) |
 | — | Record what was scanned (`scan_runs`) | **Killed** (3 Nov kill confirmed) | See Killed. Four users ever; a scan log has no denominator |
 
+End-of-day reconciliation **2026-11-16**: nothing shipped against #1–#3. Today's only product change (staging, admin-only terminal P/L tab, `6075269`/`cc6d59c`) touches none of them; `ResultsTable.jsx` still renders no width or POP, and no `scan_runs` table exists on `main` or `staging`. No status changes.
+
 ## Open proposals
 
 **Three of five slots used.** No addition: nothing new in funnel data,
