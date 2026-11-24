@@ -65,6 +65,13 @@ tidy-up. None touches #1 (no bid/ask width shown in `ResultsTable.jsx`), #2
 or #3 (no `scan_runs` table on `main` or `staging`). Evidence:
 `git grep scan_runs origin/staging` empty.
 
+Daily reconcile 2026-11-20: nothing shipped against #1–#3. Today's shipments
+(Terminal Playbook phase 1, % of equity sizing, overnight holiday clock, folded
+P/L notes) are all staging-only and all in the Terminal, which no proposal
+covers. The scan is still not recorded (#3 open); the screener still has no width
+or POP column (#1, #2 open). This backlog has not had a Tuesday run since
+2026-09-01.
+
 ## Open proposals
 
 **Three of five slots used.** No addition: nothing new in funnel data,
