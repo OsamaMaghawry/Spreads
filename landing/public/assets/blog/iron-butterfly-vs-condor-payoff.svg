@@ -1,0 +1,38 @@
+<svg viewBox="0 0 720 380" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Gain or loss at expiration, per share, of two hypothetical positions on the same 46 and 54 outer strikes. The 46/50/54 iron butterfly, opened for a 2.76 credit, is a peak: the whole 2.76 only at exactly 50, crossing zero at 47.24 and 52.76, and a 1.24 loss at and beyond 46 and 54. The 46/48/52/54 iron condor, opened for 1.03, is drawn dashed for comparison: flat at 1.03 from 48 to 52 and a 0.97 loss at and beyond 46 and 54.">
+  <rect width="720" height="380" fill="#FFFFFF"/>
+
+  <!-- zero line and strike guides -->
+  <line x1="80" y1="210" x2="660" y2="210" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="176.7" y1="50" x2="176.7" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="273.3" y1="50" x2="273.3" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="370" y1="50" x2="370" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="466.7" y1="50" x2="466.7" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <line x1="563.3" y1="50" x2="563.3" y2="300" stroke="#E2E5EE" stroke-width="1.5" stroke-dasharray="3 5"/>
+  <text x="176.7" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">46</text>
+  <text x="273.3" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#767B8E">48</text>
+  <text x="370" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">50</text>
+  <text x="466.7" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#767B8E">52</text>
+  <text x="563.3" y="328" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">54</text>
+
+  <!-- butterfly: gain above zero, loss below -->
+  <polygon points="236.6,210 370,72 503.4,210" fill="#2E8B5F" fill-opacity="0.18"/>
+  <polygon points="80,210 80,272 176.7,272 236.6,210" fill="#B4485C" fill-opacity="0.16"/>
+  <polygon points="503.4,210 563.3,272 660,272 660,210" fill="#B4485C" fill-opacity="0.16"/>
+
+  <!-- condor, dashed, for comparison -->
+  <path d="M80 258.5 L176.7 258.5 L273.3 158.5 L466.7 158.5 L563.3 258.5 L660 258.5" fill="none" stroke="#767B8E" stroke-width="3" stroke-dasharray="8 6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- butterfly payoff line -->
+  <path d="M80 272 L176.7 272 L370 72 L563.3 272 L660 272" fill="none" stroke="#14151C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- labels -->
+  <text x="370" y="56" font-size="15" font-weight="600" text-anchor="middle" fill="#14151C">iron butterfly 2.76</text>
+  <text x="400" y="198" font-size="15" font-weight="600" text-anchor="middle" fill="#767B8E">iron condor 1.03</text>
+  <text x="128" y="244" font-size="15" font-weight="600" text-anchor="middle" fill="#767B8E">-0.97</text>
+  <text x="612" y="244" font-size="15" font-weight="600" text-anchor="middle" fill="#767B8E">-0.97</text>
+  <text x="128" y="296" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">-1.24</text>
+  <text x="612" y="296" font-size="15" font-weight="600" text-anchor="middle" fill="#B4485C">-1.24</text>
+
+  <!-- axis label -->
+  <text x="370" y="362" font-size="15" text-anchor="middle" fill="#767B8E">stock price at expiration</text>
+</svg>

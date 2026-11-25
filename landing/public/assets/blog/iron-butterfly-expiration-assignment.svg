@@ -1,0 +1,27 @@
+<svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="What a hypothetical 46/50/54 iron butterfly held to expiration leaves in the account, by where the stock closes, assuming exercise by exception at one cent. Below 46, both puts settle and no shares remain. From 46 to 50, the short 50 put is assigned and the long put expires: long 100 shares. From 50 to 54, the short 50 call is assigned and the long call expires: short 100 shares. Above 54, both calls settle and no shares remain. A close at or near 50 is pin risk: whether a short leg is exercised may not be known until the next morning.">
+  <rect width="720" height="260" fill="#FFFFFF"/>
+
+  <!-- outcome bands -->
+  <rect x="80" y="60" width="96.7" height="64" fill="#C9CEDC" fill-opacity="0.45"/>
+  <rect x="176.7" y="60" width="190.3" height="64" fill="#B4485C" fill-opacity="0.16"/>
+  <rect x="373" y="60" width="190.3" height="64" fill="#B4485C" fill-opacity="0.16"/>
+  <rect x="563.3" y="60" width="96.7" height="64" fill="#C9CEDC" fill-opacity="0.45"/>
+  <text x="128.3" y="98" font-size="15" font-weight="600" text-anchor="middle" fill="#767B8E">no shares</text>
+  <text x="272" y="98" font-size="16" font-weight="600" text-anchor="middle" fill="#B4485C">long 100 shares</text>
+  <text x="468" y="98" font-size="16" font-weight="600" text-anchor="middle" fill="#B4485C">short 100 shares</text>
+  <text x="611.7" y="98" font-size="15" font-weight="600" text-anchor="middle" fill="#767B8E">no shares</text>
+
+  <!-- the pin at the short strike -->
+  <line x1="370" y1="40" x2="370" y2="150" stroke="#14151C" stroke-width="2.5"/>
+  <text x="370" y="32" font-size="15" font-weight="600" text-anchor="middle" fill="#14151C">pin</text>
+
+  <!-- price axis -->
+  <line x1="80" y1="150" x2="660" y2="150" stroke="#14151C" stroke-width="2"/>
+  <line x1="176.7" y1="142" x2="176.7" y2="158" stroke="#14151C" stroke-width="2"/>
+  <line x1="563.3" y1="142" x2="563.3" y2="158" stroke="#14151C" stroke-width="2"/>
+  <text x="176.7" y="184" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">46</text>
+  <text x="370" y="184" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">50</text>
+  <text x="563.3" y="184" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">54</text>
+
+  <text x="370" y="226" font-size="15" text-anchor="middle" fill="#767B8E">close at expiration</text>
+</svg>
