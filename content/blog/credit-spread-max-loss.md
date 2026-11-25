@@ -229,6 +229,8 @@ are separate questions the width does not answer.
 
 Related: [iron condor explained](/blog/iron-condor-explained) shows why the max loss of two credit spreads on one stock is one wing's width less the whole credit, not two widths.
 
+Related: [iron butterfly vs iron condor](/blog/iron-butterfly-explained) applies the same width-less-credit formula with both short strikes at one price, priced beside the condor on one chain.
+
 The figure also sits outside fees. Commissions both ways, plus assignment or
 exercise charges, leave the realised number worse than the formula. An assigned
 $10,000 stock position carries margin interest for as long as it is financed,

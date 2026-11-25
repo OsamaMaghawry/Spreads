@@ -3,7 +3,7 @@ title: "Assignment risk on a credit spread: what the account shows after"
 slug: assignment-risk-credit-spread
 search_title: "Credit Spread Assignment Risk: What Happens to Each Leg"
 excerpt: Only the short leg of a credit spread is ever assigned. What the account shows afterwards, and what the long leg then does, is the part nobody states before it happens.
-meta_description: "Credit spread assignment risk: only the short leg is assigned. The long leg is not used for you, and exercising it or selling it settle for different amounts."
+meta_description: "If a credit spread's short leg is assigned, you hold a stock position and the long option, which a broker does not usually exercise for you. Two exits differ."
 author: Osama Safwat Maghawry
 category: managing
 series_order: 51
