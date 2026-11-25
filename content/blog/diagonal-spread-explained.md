@@ -108,6 +108,8 @@ With the long strike below the short strike, the position has a defined worst ca
 - **The structure changes at the near expiration.** If the short call expires out of the money, what remains is a plain long call. If it finishes in the money it is usually assigned. Either way, the next step is a new decision with its own risk; rolling is [a later post in this series](/blog/rolling-options-explained).
 - **Two legs mean two spreads to cross.** Each leg has its own bid and ask, and the long call, being later-dated, is usually the less liquid. The [buying power post](/blog/options-buying-power-requirement) covers how a broker treats a spread whose long leg expires later; the broker's own rule governs how much is held.
 
+Related: the [stock replacement strategy](/blog/stock-replacement-strategy) holds a deep in-the-money call on its own, with no short call against it, in place of 100 shares.
+
 ## Frequently asked questions
 
 - **Is a diagonal spread a debit or a credit spread?** It depends on the strikes and dates. The version here, buying the later, lower-strike call and selling the nearer, higher-strike call, is a debit. Other arrangements can be a credit and have different risks.
