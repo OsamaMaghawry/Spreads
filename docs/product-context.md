@@ -509,6 +509,10 @@ pages at `deltamint.app` and `dashboard.deltamint.app`.
 - **(proposed)** The weekly email subject "DeltaMint Weekly Digest" is the one recorded exception to the colon rule.
 - **(proposed)** "Scanner" is the Strategy Scanner only; the admin Terminal's stock filter needs one name of its own (owner decision, see the W47 queue entry).
 
+### Rules added by the audit (proposed, 2026-W48)
+
+- **(proposed)** Numeric ranges in user-visible strings (app, Terminal, email, landing) read "1 to 3", never with an en dash; the blog's U+2212 minus sign in money figures is not a dash and stays.
+
 ---
 
 # Positioning and market
