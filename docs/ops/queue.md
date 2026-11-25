@@ -5,6 +5,8 @@ Format: `- [state] YYYY-MM-DD · who · what · evidence`. States: `open`,
 
 ## Needs owner
 
+- [escalated 2026-11-25] 2026-11-25 · duty-engineer · **Google refuses our sitemap submission: Search Console 403, every day since at least 7 Nov.** Evidence: `submission.google.error` in `docs/growth/metrics/2026-11-21.json` through `2026-11-24.json` reads "Search Console refused (403). Give deltamint-metrics@deltamint-metrics.iam.gserviceaccount.com \"Full\" permission"; `docs/seo/daily/2026-11-24.md` line 14 dates it to 7 Nov. Effect: new posts reach Bing/IndexNow (200) but not Google, which last read the sitemap itself on 19 Nov. A restart cannot fix a permission. **Owner:** Search Console → Settings → Users and permissions → add that address with Full permission. Email attempted via `sendDigest`, refused at CONNECT (403, standing allowlist item); push notification sent instead. Separately: no metrics snapshot exists for 2026-11-20 on main (not yesterday's, so not restarted this run).
+
 - [needs owner] 2026-09-21 · duty-engineer · **`agents@deltamint.app` needs
   confirming as a verified sender in Brevo.** `3a7e7ed` (2026-09-20, on
   `staging`) split outbound mail by reader: customer mail (weekly digest,
