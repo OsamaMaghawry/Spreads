@@ -10,6 +10,12 @@ smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
 
+Daily reconciliation **2026-11-25** (vp-product, end of day): nothing that
+reached `main` or `staging` in the last 26 hours touches #1, #2 or #3 — `main`
+got one blog post and search-title edits; `staging` got the terminal's phone
+layout and wording (`ad5ab21`, `da9f8a7`, `663412d`), none of it in the
+screener. All three proposals stay open and unshipped; no re-scope, no kill.
+
 ## Open proposals
 
 **Three of five slots used.** Two deliberately left empty — this run killed one
