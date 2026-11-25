@@ -292,7 +292,7 @@ function PlaysTab({ plays, onPlays, tagged }) {
         <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-[minmax(180px,1fr)_96px_120px_120px]">
           <label className="col-span-2 flex flex-col gap-1 sm:col-span-1"><span className={label}>Name</span><input className={input} value={draft.name} onChange={(e) => set("name", e.target.value)} /></label>
           <label className="flex flex-col gap-1"><span className={label}>Code</span><input className={`${input} font-mono`} maxLength={6} value={draft.code} onChange={(e) => set("code", e.target.value.toUpperCase())} />
-            {draft.code && !/^[A-Z0-9]{1,6}$/.test(draft.code) && <span className="text-xs text-rose-700">1–6 letters or digits</span>}
+            {draft.code && !/^[A-Z0-9]{1,6}$/.test(draft.code) && <span className="text-xs text-rose-700">1 to 6 letters or digits</span>}
             {dup && <span className="text-xs text-rose-700">Already used</span>}</label>
           <label className="flex flex-col gap-1"><span className={label}>Side</span><select className={input} value={draft.side} onChange={(e) => set("side", e.target.value)}>{SIDES.map((s) => <option key={s}>{s}</option>)}</select></label>
           <label className="flex flex-col gap-1"><span className={label}>Timeframe</span><select className={input} value={draft.timeframe} onChange={(e) => set("timeframe", e.target.value)}>{[...new Set([...TIMEFRAMES, draft.timeframe])].map((s) => <option key={s}>{s}</option>)}</select></label>
@@ -346,7 +346,7 @@ function TradesTab({ book, plays, account }) {
   const closed = trips.filter((t) => !t.open);
   const total = closed.reduce((a, t) => a + t.realized, 0);
   const options = (sel) => [
-    <option key="" value="">— No play</option>,
+    <option key="" value="">No play</option>,
     ...plays.filter((p) => !p.archived || p.id === sel).map((p) => <option key={p.id} value={p.id}>{p.name}{p.archived ? " (archived)" : ""}</option>)
   ];
   const setPlay = async (t, id) => {
@@ -470,7 +470,7 @@ function ReviewDrawer({ trip, plays, onClose, onSave }) {
           <div className="grid gap-2 sm:grid-cols-[128px_1fr]">
             <span className={label}>Play</span>
             <select className={input} value={d.play} onChange={(e) => setD((x) => ({ ...x, play: e.target.value, checks: [], followed: null }))}>
-              <option value="">— No play</option>
+              <option value="">No play</option>
               {plays.filter((p) => !p.archived || p.id === d.play).map((p) => <option key={p.id} value={p.id}>{p.name}{p.archived ? " (archived)" : ""}</option>)}
             </select>
             <span className={label}>Initial stop</span>

@@ -18,7 +18,7 @@ const CHECKLIST_MAX = 12;
 export const EXAMPLE_PLAYS = [
   {
     code: "FTS", name: "Failed-test short", side: "Short", timeframe: "10 min",
-    checklist: ["News in the last 1–3 days, trade with it", "50 EMA under 200 EMA, price under both", "Cluster of 2+ levels at the test", "SPY under VWAP"],
+    checklist: ["News in the last 1 to 3 days, trade with it", "50 EMA under 200 EMA, price under both", "Cluster of 2+ levels at the test", "SPY under VWAP"],
     entry: "10-min close below VWAP and the 21 EMA after a failed test of the cluster",
     stop: "Above the highest high of the last 3 candles",
     exit: "Hold while 10-min closes stay under the 9 EMA; exit on the first close above it, or at the close",
@@ -27,7 +27,7 @@ export const EXAMPLE_PLAYS = [
   },
   {
     code: "FTL", name: "Failed-test long", side: "Long", timeframe: "10 min",
-    checklist: ["News in the last 1–3 days, trade with it", "50 EMA over 200 EMA, price over both", "Cluster of 2+ levels at the test", "SPY over VWAP"],
+    checklist: ["News in the last 1 to 3 days, trade with it", "50 EMA over 200 EMA, price over both", "Cluster of 2+ levels at the test", "SPY over VWAP"],
     entry: "10-min close above VWAP and the 21 EMA after a failed test of support",
     stop: "Below the lowest low of the last 3 candles",
     exit: "Hold while 10-min closes stay over the 9 EMA; exit on the first close below it, or at the close",
@@ -230,7 +230,7 @@ const nyMinute = (sec) => {
   const p = Object.fromEntries(NY.formatToParts(new Date(sec * 1000)).map((x) => [x.type, x.value]));
   return Number(p.hour) * 60 + Number(p.minute);
 };
-export const TIME_BUCKETS = ["Before 9:30", "9:30–10:30", "10:30–12:00", "12:00–14:00", "14:00–16:00", "After 16:00"];
+export const TIME_BUCKETS = ["Before 9:30", "9:30 to 10:30", "10:30 to 12:00", "12:00 to 14:00", "14:00 to 16:00", "After 16:00"];
 /** The New York part of the day a trip opened in. */
 export function timeBucket(sec) {
   const m = nyMinute(sec);

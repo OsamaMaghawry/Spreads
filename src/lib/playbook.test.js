@@ -144,15 +144,15 @@ test("splits: followed and checklist only where answered; time of day in New Yor
   ];
   const s = playSplits(list, ["SPY under VWAP"], PLAY);
   assert.deepEqual(s.followed.map((g) => [g.label, g.n]), [["Followed", 1], ["Partly", 1], ["Broke the plan", 1]]);
-  assert.deepEqual(s.times.map((g) => g.label), ["Before 9:30", "9:30–10:30", "10:30–12:00", "14:00–16:00"]);
+  assert.deepEqual(s.times.map((g) => g.label), ["Before 9:30", "9:30 to 10:30", "10:30 to 12:00", "14:00 to 16:00"]);
   assert.deepEqual(s.checks.map((g) => [g.label, g.n]), [["SPY under VWAP: yes", 2], ["SPY under VWAP: no", 1]]);
   assert.deepEqual(s.answered, { followed: 3, checks: 3, of: 5 });
   assert.deepEqual(s.mistakes.map((m) => [m.label, m.n, m.r, m.pl]), [["Chased entry", 2, -1.5, -150], ["Moved stop", 1, -1, -100]]);
 });
 
 test("time of day across a clock change, and sample flags", () => {
-  assert.equal(timeBucket(at("2026-07-01T13:35:00Z")), "9:30–10:30"); // summer: 9:35
-  assert.equal(timeBucket(at("2026-12-01T14:35:00Z")), "9:30–10:30"); // winter: 9:35
+  assert.equal(timeBucket(at("2026-07-01T13:35:00Z")), "9:30 to 10:30"); // summer: 9:35
+  assert.equal(timeBucket(at("2026-12-01T14:35:00Z")), "9:30 to 10:30"); // winter: 9:35
   assert.equal(timeBucket(at("2026-12-01T21:05:00Z")), "After 16:00");
   assert.equal(timeBucket(at("2026-12-01T08:00:00Z")), "Before 9:30"); // a coin at 3:00
   assert.equal(sampleFlag(9), "Too few to read");
