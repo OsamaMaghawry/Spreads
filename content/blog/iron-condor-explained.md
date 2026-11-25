@@ -154,6 +154,8 @@ three points matter for a condor.
 - **Before expiration.** Either short leg can be assigned early, and early assignment on a call is most likely around a dividend. The long leg in the same wing still caps the price risk, but the shares, any dividend owed, and the margin they bring are new facts in the account.
 - **Between the strikes.** A close between a short strike and its long strike is the case neither the credit nor the width describes. See [what happens at expiration](/blog/what-happens-options-expiration) for the one-cent exercise-by-exception default, which a broker may set higher. After an expiration assignment between the strikes, the long leg has expired and nothing caps the shares.
 
+Related: [the iron butterfly](/blog/iron-butterfly-explained) moves both short strikes of this condor to 50, and at expiration that leaves a short leg in the money at every close but one.
+
 ## Frequently asked questions
 
 - **What is an iron condor?** A put credit spread and a call credit spread on the same stock and expiration, opened for one net credit. The short strikes sit on either side of the stock's price.
