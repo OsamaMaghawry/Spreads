@@ -95,6 +95,8 @@ Its gap is the approved account, where nothing refuses anything. There, a diagon
 
 On a book of many short calls, each one can be read against what is behind it: same account, expiring no earlier. [Options position alerts](/blog/options-position-alerts) covers the conditions worth watching on a spread.
 
+Related: [options approval levels](/blog/options-approval-levels) places five positions on one chain by the tier each commonly needs.
+
 ## Frequently asked questions
 
 **Can you sell the shares while a covered call is open?** Without uncovered-call approval, commonly not: the shares are held against the call, so the sale is rejected or the call has to be bought back first. In an account approved for uncovered calls, the sale can go through and leaves the call naked, as in the worked example above.
