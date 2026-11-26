@@ -70,7 +70,9 @@ Three things about it are deliberate, and all three were wrong until 4 Sep:
   now left open.
 
 Related: which price the watch judges on is decided by the **clock**, not by
-the mode. Outside 13:30–20:00 UTC it uses the closing price, because the live
+the mode. Outside the regular session, 9:30–16:00 New York time (13:30–20:00
+UTC in summer, 14:30–21:00 UTC in winter; on `main` still fixed at 13:30–20:00
+UTC until d365b9b is released), it uses the closing price, because the live
 ladder marks everything older than thirty minutes untrusted and after the bell
 that is every price there is. See `sessionPhase` in `_shared/watchRules.ts`.
 | `earnings_before_expiry` | the underlying reports before the contract expires, within D days | 🟠 warning | `earnings_within_days` (3) |
