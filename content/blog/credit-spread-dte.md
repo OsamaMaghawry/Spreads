@@ -31,6 +31,8 @@ Prices come from a Black-Scholes fit at 40% implied volatility, a 365-day year, 
 
 The maximum loss is the width times 100 less the credit, as in the [max loss post](/blog/credit-spread-max-loss). A 46/44 opened at the mark would carry a maximum loss of about $143 with 60 days left, $150 with 45, $161 with 30, $170 with 21, $180 with 14 and $193 with 7. The strikes and the $200 width never changed; only the credit offsetting them did.
 
+Related: [debit spread vs credit spread](/blog/debit-spread-vs-credit-spread) sets a put credit spread beside a call debit spread on the same strikes, which have the same payoff at expiration on its hypothetical chain.
+
 ## A spread's mark falls faster per day as expiration nears
 
 Hold the stock still at $50 and move only the calendar. Each row is the same spread on a different day of its life.
