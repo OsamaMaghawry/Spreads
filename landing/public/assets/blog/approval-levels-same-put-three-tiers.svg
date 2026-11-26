@@ -1,0 +1,33 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="One hypothetical short 50 put on XYZ, shown three ways. Backed by $5,000 in cash it is a cash-secured put. Backed by a long 48 put in the same account and expiration it is a spread. Backed by nothing it is an uncovered put, shaded as risk. The option sold is identical in all three; only what stands behind it changes the tier it needs.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+
+  <!-- the one option sold -->
+  <rect x="270" y="24" width="180" height="48" rx="6" fill="#FFFFFF" stroke="#14151C" stroke-width="2"/>
+  <text x="360" y="55" font-size="18" font-weight="600" text-anchor="middle" fill="#14151C">short 50 put</text>
+
+  <!-- branches -->
+  <line x1="360" y1="72" x2="140" y2="120" stroke="#767B8E" stroke-width="2"/>
+  <line x1="360" y1="72" x2="360" y2="120" stroke="#767B8E" stroke-width="2"/>
+  <line x1="360" y1="72" x2="580" y2="120" stroke="#767B8E" stroke-width="2"/>
+
+  <!-- what stands behind it -->
+  <rect x="50" y="120" width="180" height="56" rx="6" fill="#C9CEDC" fill-opacity="0.45"/>
+  <rect x="270" y="120" width="180" height="56" rx="6" fill="#C9CEDC" fill-opacity="0.45"/>
+  <rect x="490" y="120" width="180" height="56" rx="6" fill="#B4485C" fill-opacity="0.16"/>
+  <text x="140" y="155" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">$5,000 cash</text>
+  <text x="360" y="155" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">long 48 put</text>
+  <text x="580" y="155" font-size="17" font-weight="600" text-anchor="middle" fill="#B4485C">nothing</text>
+
+  <!-- arrows to the tier -->
+  <line x1="140" y1="182" x2="140" y2="222" stroke="#14151C" stroke-width="2"/>
+  <path d="M133 214 L140 226 L147 214 Z" fill="#14151C"/>
+  <line x1="360" y1="182" x2="360" y2="222" stroke="#14151C" stroke-width="2"/>
+  <path d="M353 214 L360 226 L367 214 Z" fill="#14151C"/>
+  <line x1="580" y1="182" x2="580" y2="222" stroke="#B4485C" stroke-width="2"/>
+  <path d="M573 214 L580 226 L587 214 Z" fill="#B4485C"/>
+
+  <!-- the tier it needs -->
+  <text x="140" y="258" font-size="18" font-weight="600" text-anchor="middle" fill="#767B8E">cash-secured</text>
+  <text x="360" y="258" font-size="18" font-weight="600" text-anchor="middle" fill="#767B8E">spread</text>
+  <text x="580" y="258" font-size="18" font-weight="600" text-anchor="middle" fill="#B4485C">uncovered</text>
+</svg>

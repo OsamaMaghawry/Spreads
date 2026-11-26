@@ -1,0 +1,23 @@
+<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A common ladder of options approval tiers, drawn as four steps rising from left to right. The lowest step holds the covered call and the cash-secured put, whose worst case is covered by shares or cash already in the account. The second holds the long call, covered by the premium paid. The third holds the put credit spread, whose short put is capped by a long put. The highest step, shaded as risk, holds the naked call, which nothing covers. Brokers number these steps differently.">
+  <rect width="720" height="320" fill="#FFFFFF"/>
+
+  <!-- steps: higher tier as the cover thins -->
+  <rect x="60" y="230" width="150" height="60" fill="#C9CEDC" fill-opacity="0.45"/>
+  <rect x="210" y="180" width="150" height="110" fill="#C9CEDC" fill-opacity="0.6"/>
+  <rect x="360" y="130" width="150" height="160" fill="#C9CEDC" fill-opacity="0.8"/>
+  <rect x="510" y="80" width="150" height="210" fill="#B4485C" fill-opacity="0.16"/>
+  <line x1="60" y1="290" x2="660" y2="290" stroke="#14151C" stroke-width="2"/>
+
+  <!-- what covers the worst case, inside each step -->
+  <text x="135" y="266" font-size="16" font-weight="600" text-anchor="middle" fill="#767B8E">shares/cash</text>
+  <text x="285" y="214" font-size="16" font-weight="600" text-anchor="middle" fill="#767B8E">premium</text>
+  <text x="435" y="164" font-size="16" font-weight="600" text-anchor="middle" fill="#767B8E">long leg</text>
+  <text x="585" y="114" font-size="16" font-weight="600" text-anchor="middle" fill="#B4485C">nothing</text>
+
+  <!-- positions on each step -->
+  <text x="135" y="196" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">covered call</text>
+  <text x="135" y="218" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">cash-secured put</text>
+  <text x="285" y="168" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">long call</text>
+  <text x="435" y="118" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">put spread</text>
+  <text x="585" y="68" font-size="17" font-weight="600" text-anchor="middle" fill="#B4485C">naked call</text>
+</svg>
