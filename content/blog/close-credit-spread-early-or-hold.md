@@ -27,6 +27,8 @@ Because it is one order for one price, the spread has a quote of its own, a bid 
 
 Nothing about closing early is special to this structure. The same applies to a [call credit spread](/blog/call-credit-spread-explained) or an [iron condor](/blog/iron-condor-explained), which can be closed as one four-leg order or one side at a time; [adjusting an iron condor](/blog/adjust-iron-condor) works out what closing one side does to the max loss.
 
+Related: an [iron butterfly](/blog/iron-butterfly-explained) is an iron condor with both short strikes at one price.
+
 ## How much reward is left when the spread is cheap?
 
 Take a hypothetical XYZ put credit spread: sell the 50 put, buy the 48 put, one contract, for a 0.70 credit. That is $70 received against a $2.00 width, so the [max loss](/blog/credit-spread-max-loss) is $200 minus $70, or $130.
