@@ -134,6 +134,7 @@ cleared by desk-editor; each topic gets a keywords row before it is written.
 
 66. Debit spread vs credit spread: the same vertical from both sides — "debit spread vs credit spread" (income)
 67. The iron butterfly: an iron condor with the short strikes together — "iron butterfly vs iron condor" (income)
+68. Options approval levels: which tier each position needs, and why spreads sit where they do — "what options approval level do I need for spreads" (foundations)
 
 ## Rules a writer keeps hitting
 
