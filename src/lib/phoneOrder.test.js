@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildPhoneOrder, marketableLimit, stepPrice, positionExits, riskReward, phoneSession } from "./phoneOrder.js";
+import { buildPhoneOrder, marketableLimit, stepPrice, positionExits, riskReward, phoneSession, rMultiple, exitsNotes } from "./phoneOrder.js";
 
 const q = { bid: 12.34, ask: 12.36, last: 12.35 };
 const base = { symbol: "XYZ", side: "buy", qty: 100 };
@@ -107,4 +107,54 @@ test("no market order overnight or while closed", () => {
 test("the target read as the server reads it: the last closing limit", () => {
   const orders = [{ symbol: "XYZ", side: "sell", type: "limit", limit: 13 }, { symbol: "XYZ", side: "sell", type: "limit", limit: 14 }];
   assert.equal(positionExits(orders, "XYZ", false).target, 14);
+});
+
+// Trading audit 2026-W48 (head-of-trading, 26 Nov).
+test("W48-F1: a sale of shares held (or a buy-back of a short) takes no stop and target", () => {
+  const q2 = { bid: 99.9, ask: 100.1, last: 100 };
+  const sell = buildPhoneOrder({ symbol: "XYZ", side: "sell", qty: 100, type: "market", sl: 101.9, tp: 95.9 }, { session: "regular", quote: q2, held: 100 });
+  assert.ok(sell.error, "a bracket on a closing sale would open a short");
+  assert.match(sell.error, /new position the other way/);
+  const later = buildPhoneOrder({ symbol: "XYZ", side: "sell", qty: 100, type: "market", sl: 101.9 }, { session: "extended", quote: q2, held: 100 });
+  assert.ok(later.error, "nor set after the fill");
+  const cover = buildPhoneOrder({ symbol: "XYZ", side: "buy", qty: 100, type: "limit", limit: 100, sl: 98, tp: 104 }, { session: "regular", quote: q2, held: -100 });
+  assert.ok(cover.error);
+  // A plain closing sale still goes, and an opening order keeps its bracket.
+  assert.equal(buildPhoneOrder({ symbol: "XYZ", side: "sell", qty: 100, type: "market" }, { session: "regular", quote: q2, held: 100 }).order.type, "market");
+  assert.equal(buildPhoneOrder({ symbol: "XYZ", side: "sell", qty: 100, type: "limit", limit: 100, sl: 101.9, tp: 95.9 }, { session: "regular", quote: q2, held: 0 }).order.stopLoss, 101.9);
+});
+
+test("W48-F4a: no marketable limit from the last trade when the touch is missing", () => {
+  assert.equal(marketableLimit("buy", { bid: 0, ask: 0, last: 100 }), null);
+  assert.equal(marketableLimit("sell", { bid: 0, ask: 101, last: 100 }), null);
+  const r = buildPhoneOrder({ ...base, type: "market" }, { session: "extended", quote: { bid: 0, ask: 0, last: 100 } });
+  assert.ok(r.error);
+});
+
+test("W48-F5: a stop already through the market is refused, not only one through the limit", () => {
+  const q2 = { bid: 99.9, ask: 100.1, last: 100 };
+  const buy = buildPhoneOrder({ ...base, type: "limit", limit: 101, sl: 100.5, tp: 104 }, { session: "regular", quote: q2 });
+  assert.ok(buy.error, "stop 100.50 above the 99.90 bid fires as soon as it fills");
+  const sell = buildPhoneOrder({ ...base, side: "sell", type: "limit", limit: 99, sl: 99.5, tp: 96 }, { session: "regular", quote: q2 });
+  assert.ok(sell.error);
+  assert.ok(buildPhoneOrder({ ...base, type: "limit", limit: 101, sl: 99, tp: 104 }, { session: "regular", quote: q2 }).order);
+});
+
+test("W48-F6: R is withheld when the stop is at the entry or on the profit side", () => {
+  assert.equal(rMultiple({ avg: 100, stop: 100, last: 102, short: false }), null);
+  assert.equal(rMultiple({ avg: 100.123, stop: 100.12, last: 102.765, short: false }), null);
+  assert.equal(rMultiple({ avg: 100, stop: 101, last: 102, short: false }), null);
+  assert.equal(rMultiple({ avg: 100, stop: 98, last: 102, short: false }), 1);
+  assert.equal(rMultiple({ avg: 100, stop: 102, last: 98, short: true }), 1);
+});
+
+test("W48-F3: the phone's exits toast says when a stop lasts for today only", () => {
+  const note = "a position with part of a share: the stop lasts for today only";
+  assert.match(exitsNotes({ note }), /today only/);
+  assert.match(exitsNotes({ group: [{ name: "B", ok: true, note }] }), /B: .*today only/);
+  assert.equal(exitsNotes({ note: null }), "");
+});
+
+test("W48-F8: the phone says every order is a day order", () => {
+  assert.match(buildPhoneOrder({ ...base, type: "limit", limit: 12 }, { session: "regular", quote: q }).words, /for the day/);
 });

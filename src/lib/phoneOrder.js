@@ -16,7 +16,7 @@
 //   - an order set to regular hours only waits for 9:30, and says so.
 
 import { sessionOf, overnightOf } from "./terminal.js";
-import { stopOf } from "./accountGroup.js";
+import { stopOf, dayOnlyNews } from "./accountGroup.js";
 
 /** "regular", "extended" (pre-market, after hours), "overnight" (20:00 to 4:00) or "closed". */
 export function phoneSession(sec) {
@@ -46,9 +46,10 @@ export function stepPrice(p, steps) {
 }
 
 /** The limit that fills at once outside regular hours: 0.5% through the touch. */
+// No bid or ask, no price: never the last trade in its place (W48-F4a).
 export function marketableLimit(side, quote) {
-  const ask = Number(quote?.ask) || Number(quote?.last) || 0;
-  const bid = Number(quote?.bid) || Number(quote?.last) || 0;
+  const ask = Number(quote?.ask) || 0;
+  const bid = Number(quote?.bid) || 0;
   const p = side === "buy" ? ask * 1.005 : bid * 0.995;
   return p > 0 ? roundPrice(p) : null;
 }
@@ -58,11 +59,11 @@ const fmt = (p) => (Number(p) >= 1 ? Number(p).toFixed(2) : Number(p).toFixed(4)
 /**
  * The order for a phone ticket draft.
  * draft: { symbol, side "buy"|"sell", qty, type "market"|"limit"|"stop", limit, stop, ext, sl, tp }
- * ctx: { session (phoneSession), quote, play }
+ * ctx: { session (phoneSession), quote, play, held (signed shares held on the account on screen) }
  * Returns { error } or { order, later: { stop, target } | null, words, notes, entry }.
  * `later`: exits to set with "protect" once the entry fills.
  */
-export function buildPhoneOrder(draft, { session = "regular", quote = null, play = null } = {}) {
+export function buildPhoneOrder(draft, { session = "regular", quote = null, play = null, held = 0 } = {}) {
   const d = draft || {};
   const side = d.side === "sell" ? "sell" : "buy";
   const qty = Number(d.qty);
@@ -109,9 +110,19 @@ export function buildPhoneOrder(draft, { session = "regular", quote = null, play
   }
   const sl = d.sl !== null && d.sl !== undefined && d.sl !== "" ? roundPrice(d.sl) : null;
   const tp = d.tp !== null && d.tp !== undefined && d.tp !== "" ? roundPrice(d.tp) : null;
+  // A sale of shares held, or a buy-back of a short: a stop and target on it
+  // would open a new position the other way once it fills (W48-F1; the
+  // desktop's ticketChoices `closing` says the same).
+  const h = Number(held) || 0;
+  if ((sl || tp) && ((side === "sell" && h > 0) || (side === "buy" && h < 0))) {
+    return { error: "Its take-profit and stop-loss would open a new position the other way. For the shares you hold, set the stop and target on the position." };
+  }
   if (entry) {
     const below = (p) => (side === "buy" ? p < entry : p > entry);
     if (sl && !below(sl)) return { error: `The stop must be ${side === "buy" ? "below" : "above"} the entry (${fmt(entry)}).` };
+    // Nor already through the market: it would fire as soon as the entry fills (W48-F5).
+    const other = side === "buy" ? Number(quote?.bid) : Number(quote?.ask);
+    if (sl && other > 0 && (side === "buy" ? sl >= other : sl <= other)) return { error: `The stop must be ${side === "buy" ? "below the bid" : "above the ask"} (${fmt(other)}), or it fires as soon as this fills.` };
     if (tp && below(tp)) return { error: `The target must be ${side === "buy" ? "above" : "below"} the entry (${fmt(entry)}).` };
   }
   let later = null;
@@ -125,8 +136,29 @@ export function buildPhoneOrder(draft, { session = "regular", quote = null, play
   const how = order.type === "market" ? "at market" : order.type === "limit" ? `limit ${fmt(order.limitPrice)}` : `stop ${fmt(order.stopPrice)}`;
   const words = `${side === "buy" ? "Buy" : "Sell"} ${qty} ${d.symbol} ${how}` +
     (order.extendedHours ? ", extended hours" : outside ? ", regular hours only" : "") +
-    (sl ? `, stop ${fmt(sl)}` : "") + (tp ? `, target ${fmt(tp)}` : "");
+    (sl ? `, stop ${fmt(sl)}` : "") + (tp ? `, target ${fmt(tp)}` : "") + ", for the day";
   return { order, later, words, notes, entry };
+}
+
+/**
+ * A position's R: its move over the distance from its average to its stop.
+ * Withheld (null) when the stop sits within a cent of the average or on the
+ * profit side, where there is no risk to measure in (W48-F6: "+InfinityR").
+ */
+export function rMultiple({ avg, stop, last, short }) {
+  const a = Number(avg), s = Number(stop), l = Number(last);
+  if (!(a > 0) || !(s > 0) || !(l > 0)) return null;
+  const dir = short ? -1 : 1;
+  const risk = (a - s) * dir;
+  if (!(risk >= tickOf(a) - 1e-9)) return null;
+  return ((l - a) * dir) / risk;
+}
+
+/** What a "protect" answer says beyond the prices: a stop for today only, here or on a ticked account (W48-F3). */
+export function exitsNotes(d) {
+  const own = d?.note ? String(d.note) : "";
+  const group = dayOnlyNews(d?.group);
+  return [own, group?.detail].filter(Boolean).join(" · ");
 }
 
 /** The dollars at risk and in reward for `qty` from `entry` (null where not set). */

@@ -1,5 +1,6 @@
 import { invokeFunction } from "@/lib/functions";
 import { orderNews, px } from "@/lib/terminal";
+import { exitsNotes } from "@/lib/phoneOrder";
 import { reportGroup, trackOrder } from "../runHotkey";
 
 // What the phone sends, through the same server actions as the desktop:
@@ -67,7 +68,10 @@ export async function sendTicket({ account, built, alloc, leadOff, notify, refre
     const d = await setExits({ accountId, symbol: order.symbol, stop: later.stop, target: later.target });
     const names = [later.stop && `stop ${px(later.stop)}`, later.target && `target ${px(later.target)}`].filter(Boolean).join(" and ");
     if (d.error) notify({ key: `${key}${accountId}x`, tone: "bad", title: `${who ? `${who}: ` : ""}Exits not set`, detail: `${d.error} Set your ${names} now.` });
-    else notify({ key: `${key}${accountId}x`, tone: "ok", title: `${who ? `${who}: ` : ""}Exits set`, detail: `${order.symbol} ${names}` });
+    else {
+      const day = exitsNotes(d);
+      notify({ key: `${key}${accountId}x`, tone: "ok", title: `${who ? `${who}: ` : ""}Exits set`, detail: `${order.symbol} ${names}${day ? ` · ${day}` : ""}` });
+    }
     refresh?.();
   } : undefined);
   const r = await invokeFunction("terminal", { action: "order", accountId: account.id, order: body, group: groupOut })

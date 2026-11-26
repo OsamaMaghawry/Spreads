@@ -13,7 +13,7 @@ import { allocateParts, sendTicket } from "./phoneSend";
 
 const SIZES = [1, 10, 50, 100, 500, 1000];
 
-export default function PhoneTicket({ open, onClose, start, account, symbol, quote, equity, ctx, extDefault, notify, refresh, askConfirm, accountName }) {
+export default function PhoneTicket({ open, onClose, start, account, symbol, quote, equity, held = 0, ctx, extDefault, notify, refresh, askConfirm, accountName }) {
   const [side, setSide] = useState("buy");
   const [qty, setQty] = useState(100);
   const [type, setType] = useState("market");
@@ -39,9 +39,9 @@ export default function PhoneTicket({ open, onClose, start, account, symbol, quo
 
   const session = phoneSession(Date.now() / 1000);
   const draft = { symbol, side, qty, type, limit: price, stop: price, ext, sl, tp };
-  const built = useMemo(() => buildPhoneOrder(draft, { session, quote, play: ctx?.play || null }),
+  const built = useMemo(() => buildPhoneOrder(draft, { session, quote, play: ctx?.play || null, held }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [symbol, side, qty, type, price, ext, sl, tp, session, quote?.bid, quote?.ask, quote?.last, ctx?.play]);
+    [symbol, side, qty, type, price, ext, sl, tp, session, quote?.bid, quote?.ask, quote?.last, ctx?.play, held]);
   const rr = riskReward({ side, qty, entry: built.entry, sl, tp });
   const pickSide = (s) => {
     setSide(s);
@@ -67,13 +67,16 @@ export default function PhoneTicket({ open, onClose, start, account, symbol, quo
     const alloc = await allocateParts({ account, order: built.order, group: ctx?.group || [], leadOff: !!ctx?.leadOff });
     setBusy(false);
     if (alloc.error) { setProblem(alloc.error); return; }
+    // Closing on a ticked account: its stop and target would open the other way there (W48-F1).
+    if (alloc.closing && (built.order?.stopLoss || built.later)) { setProblem("Its take-profit and stop-loss would open a new position the other way on an account that holds this. Set them on the position instead."); return; }
     const parts = alloc.rows.filter((g) => Number(g.part) > 0);
     if (!parts.length) { setProblem("Nothing to send: every account's part comes to zero."); return; }
     askConfirm({
       title: `${side === "buy" ? "Buy" : "Sell"} ${symbol}`,
       lines: [
         built.words,
-        rr.risk !== null ? `Risk ${fmtMoney(rr.risk)}${Number(equity) > 0 ? ` (${(rr.risk / Number(equity) * 100).toFixed(2)}% of ${accountName || "the account"})` : ""}${rr.r !== null ? ` · reward ${rr.r.toFixed(1)}R` : ""}` : "No stop set",
+        // Shared over several accounts, the risk is the total's, not a share of the screen account (W48-F7).
+        rr.risk !== null ? `Risk ${fmtMoney(rr.risk)}${alloc.rows.length > 1 ? ` in total over ${alloc.rows.length} accounts` : Number(equity) > 0 ? ` (${(rr.risk / Number(equity) * 100).toFixed(2)}% of ${accountName || "the account"})` : ""}${rr.r !== null ? ` · reward ${rr.r.toFixed(1)}R` : ""}` : "No stop set",
         ...built.notes.map((t) => ({ text: t, warn: /waits|only/.test(t) })),
         ...(alloc.rows.length > 1 ? [`Shared by portfolio size: ${alloc.rows.map((g) => `${g.name} ${g.part}`).join(" · ")}`] : [])
       ],

@@ -1,6 +1,6 @@
 import { px, sizeText, pctText } from "@/lib/terminal";
 import { fmtMoney } from "@/lib/format";
-import { positionExits, roundPrice } from "@/lib/phoneOrder";
+import { positionExits, roundPrice, rMultiple, exitsNotes } from "@/lib/phoneOrder";
 import { runHotkey } from "../runHotkey";
 import { protectiveOrder, editableOrder, qtyChangeable, cancelRows, changeBlock } from "../orderActions";
 import { setExits } from "./phoneSend";
@@ -48,7 +48,10 @@ export async function sendExits({ symbol, cur, d, getCtx, notify, refresh }) {
   const r = await setExits({ accountId: c.account?.id, symbol, stop, target, group: c.group || [], leadOff: !!c.leadOff });
   const said = [stop && `stop ${px(stop)}`, target && `target ${px(target)}`].filter(Boolean).join(" · ");
   if (r.error) notify({ key: `px${Date.now()}`, tone: "bad", title: `${symbol} exits not changed`, detail: r.error });
-  else notify({ key: `px${Date.now()}`, tone: "ok", title: `${symbol} exits set`, detail: said + (r.group?.some((g) => g.ok === false) ? " · not on every account: see Orders" : "") });
+  else {
+    const day = exitsNotes(r);
+    notify({ key: `px${Date.now()}`, tone: "ok", title: `${symbol} exits set`, detail: said + (r.group?.some((g) => g.ok === false) ? " · not on every account: see Orders" : "") + (day ? ` · ${day}` : "") });
+  }
   refresh?.();
 }
 
@@ -130,7 +133,7 @@ export function PositionCards({ view, quoteOf, getCtx, askConfirm, notify, refre
         const dir = short ? -1 : 1;
         const last = quoteOf(p.symbol).last ?? p.last;
         const pl = last && p.avgPrice ? (last - p.avgPrice) * dir * qty : p.unrealized;
-        const r = stop && p.avgPrice && last ? ((last - p.avgPrice) * dir) / Math.abs(p.avgPrice - stop) : null;
+        const r = rMultiple({ avg: p.avgPrice, stop, last, short });
         const changed = Object.keys(d).length > 0;
         return (
           <div key={p.symbol} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3.5">

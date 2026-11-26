@@ -220,6 +220,7 @@ export default function PhoneTerminal(props) {
         </Sheet>
       ) : (
         <PhoneTicket open={!!ticket} onClose={() => setTicket(null)} start={ticket} account={account} symbol={symbol} quote={quote} equity={view?.equity}
+          held={position ? (position.side === "short" ? -1 : 1) * Math.abs(Number(position.qty) || 0) : 0}
           ctx={getCtx()} extDefault={extDefault} notify={notify} refresh={refresh} askConfirm={setConfirm} accountName={account?.name} />
       )}
       <ConfirmSheet confirm={confirm} onClose={() => setConfirm(null)} mode={mode} />
