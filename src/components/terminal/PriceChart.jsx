@@ -144,10 +144,8 @@ const indicatorValue = (type, v) => (v === null || v === undefined ? "—" : IND
  * above"; "not to delete the moving average or the indicator, just to hide
  * it"). Its own state, so the chart is not drawn again as the pointer moves.
  */
-function ChartLegend({ subscribe, read, indicators, onToggle, onRemove, crypto, interval, folded = false }) {
+function ChartLegend({ subscribe, read, indicators, onToggle, onRemove, crypto, interval, folded = false, open = false, setOpen = (v) => void v }) {
   const [, setTick] = useState(0);
-  // On a phone the indicator list is folded under one chip, off the candles.
-  const [open, setOpen] = useState(false);
   const atRef = useRef(null);
   useEffect(() => subscribe((t) => { atRef.current = t; setTick((n) => n + 1); }), [subscribe]);
   // Without a pointer on the chart, the latest candle as it trades.
@@ -171,7 +169,7 @@ function ChartLegend({ subscribe, read, indicators, onToggle, onRemove, crypto, 
         </div>
       )}
       {folded && indicators.length > 0 && (
-        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
           className="pointer-events-auto self-start rounded-full border border-slate-200 bg-white/90 px-2 py-1 text-[11px] font-medium text-slate-600">
           Indicators ({indicators.length}) {open ? "▴" : "▾"}
         </button>
@@ -251,6 +249,10 @@ function PriceChart({
   const barsRef = useRef([]);
   const extRef = useRef([]);
   // Regular or all hours, kept with the account (useAccountSetting.js).
+  // The indicator list folded under one chip, off the candles (27 Nov, the
+  // owner: "the terminal now became so noisy, specially the chart"); open or
+  // closed as last left, kept with the account.
+  const [legendOpen, setLegendOpen] = useAccountSetting("legendopen", { localKey: "terminal.legendopen", initial: () => false, clean: (v) => v === true });
   const [session, setSession] = useAccountSetting("chartsession", {
     localKey: SESSION_KEY, initial: () => "regular", clean: (v) => (v === "all" ? "all" : "regular"), fromLocal: (raw) => raw, toLocal: (v) => v
   });
@@ -1210,7 +1212,7 @@ function PriceChart({
         )}
         <div className="relative ml-1">
           <button type="button" onClick={() => setMenu((v) => !v)} title="Indicators" className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${menu ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
-            <Activity className="h-3.5 w-3.5" />{compact ? "" : "Indicators"}{indicators.length ? ` (${indicators.length})` : ""}
+            <Activity className="h-3.5 w-3.5" />{indicators.length ? ` (${indicators.length})` : ""}
           </button>
           {menu && (
             <div className="absolute left-0 z-30 mt-1 w-72 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-lg">
@@ -1256,13 +1258,13 @@ function PriceChart({
         <div className="relative">
           <button type="button" onClick={onReplayButton} title={replayOn ? "Leave the replay" : "Replay the charts from a past date, for practice"}
             className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${replayOn ? "bg-amber-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
-            <History className="h-3.5 w-3.5" />{compact ? "" : replayOn ? "Exit replay" : "Replay"}
+            <History className="h-3.5 w-3.5" />{replayOn ? "Exit replay" : ""}
           </button>
         </div>
         <div className="relative">
           <button type="button" onClick={() => setTradesMenu((v) => !v)} title="Your buys, sells and position lines on the chart: show or hide them"
             className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${tradesMenu ? "bg-slate-900 text-white" : !marks.arrows && !marks.lines ? "text-slate-400 line-through hover:bg-slate-100" : "text-slate-600 hover:bg-slate-100"}`}>
-            <ArrowUpDown className="h-3.5 w-3.5" />{compact ? "" : "Trades"}
+            <ArrowUpDown className="h-3.5 w-3.5" />
           </button>
           {tradesMenu && (
             <div className="absolute left-0 z-30 mt-1 w-64 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-lg">
@@ -1284,7 +1286,7 @@ function PriceChart({
         <div className="relative">
           <button type="button" onClick={() => setEventsMenu((v) => !v)} title="Earnings and economic releases on the chart"
             className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${eventsMenu ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
-            <CalendarDays className="h-3.5 w-3.5" />{compact ? "" : `Events${shown.length ? ` (${kinds.filter((k) => shown.includes(k.id)).length})` : ""}`}
+            <CalendarDays className="h-3.5 w-3.5" />{shown.length ? kinds.filter((k) => shown.includes(k.id)).length : ""}
           </button>
           {eventsMenu && (
             <div className="absolute left-0 z-30 mt-1 w-80 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-lg">
@@ -1315,7 +1317,7 @@ function PriceChart({
           <div className="relative">
             <button type="button" onClick={() => setGammaMenu((v) => !v)} title="Gamma on the chart: the call wall, put wall and zero-gamma flip; show or hide them"
               className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${gammaMenu ? "bg-slate-900 text-white" : !anyGexLine(gexLines) ? "text-slate-400 line-through hover:bg-slate-100" : "text-slate-600 hover:bg-slate-100"}`}>
-              <Magnet className="h-3.5 w-3.5" />{compact ? "" : "Gamma"}
+              <Magnet className="h-3.5 w-3.5" />
               {gexMine && anyGexLine(gexLines) && !replayOn && (
                 <span title={`${gexMine.net >= 0 ? "Positive" : "Negative"} gamma${gexMine.hedge !== null ? `; hedging ${hedgePct(gexMine.hedge)} of a normal day's dollar volume per 1% move` : ""}`}
                   className={`rounded px-1 text-[9px] font-bold tabular-nums ${gexMine.net >= 0 ? "bg-blue-50 text-blue-800" : "bg-rose-50 text-rose-800"}`}>
@@ -1362,7 +1364,7 @@ function PriceChart({
             it's noisy"), open while one is in hand or chosen. */}
         <button type="button" title="Drawing tools" aria-label="Drawing tools" aria-expanded={toolsOpen} onClick={() => setToolsOpen((v) => !v)}
           className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${toolsOpen || tool !== "cursor" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
-          <Pencil className="h-3.5 w-3.5" />{compact ? "" : `Draw${drawings.length ? ` (${drawings.length})` : ""}`}
+          <Pencil className="h-3.5 w-3.5" />{drawings.length ? drawings.length : ""}
         </button>
         {(toolsOpen || tool !== "cursor" || selected) && (
           <>
@@ -1448,7 +1450,7 @@ function PriceChart({
             style={{ left: editing.x, top: editing.y - 11 }}
           />
         )}
-        <ChartLegend subscribe={onLegend} read={readLegend} indicators={indicators} onToggle={toggleIndicator} onRemove={removeIndicator} folded={phone}
+        <ChartLegend subscribe={onLegend} read={readLegend} indicators={indicators} onToggle={toggleIndicator} onRemove={removeIndicator} folded open={legendOpen} setOpen={setLegendOpen}
           crypto={crypto} interval={interval} />
       </div>
     </div>

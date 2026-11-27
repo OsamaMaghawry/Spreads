@@ -290,7 +290,7 @@ type Side = { bid?: number | null; ask?: number | null };
  * there is. Overnight (20:00 to 4:00) counts as extended hours; at the
  * weekend shares cannot trade at all: refused.
  */
-export function exitPlan(position: Position, amount: { all: boolean; qty: number }, session: "regular" | "extended" | "closed", quote: Side & { ref?: number | null; live?: Side; overnight?: boolean }, crypto = false):
+export function exitPlan(position: Position, amount: { all: boolean; qty: number }, session: "regular" | "extended" | "closed", quote: Side & { ref?: number | null; live?: Side; overnight?: boolean }, crypto = false, partsOutside = false):
   { ok: true; how: "close"; all: boolean; qty: number } | { ok: true; how: "limit"; side: "buy" | "sell"; qty: number; limitPrice: number; note: string | null } | { ok: false; reason: string } {
   const held = Math.abs(num(position?.qty) || 0);
   if (!(held > 0)) return { ok: false, reason: "No position to exit." };
@@ -311,11 +311,16 @@ export function exitPlan(position: Position, amount: { all: boolean; qty: number
   const near = ref && ref > 0 ? seen.find((v) => Math.abs(v - ref) / ref <= EXIT_BAND) : null;
   const price = near ?? (ref && ref > 0 ? ref * (long ? 1 - EXIT_THROUGH : 1 + EXIT_THROUGH) : null);
   if (!(price && price > 0)) return { ok: false, reason: `No ${word} to exit against outside regular hours.` };
-  const shares = Math.floor(wanted + 1e-9);
-  if (shares < 1) return { ok: false, reason: "Outside regular hours only whole shares trade, and this exit is less than one." };
+  // Part shares trade outside regular hours too, as a limit for the day, where
+  // Alpaca marks the share for it (fractional_eh_enabled; 27 Nov, the owner,
+  // a part-share exit refused at 8:10: "This should be activated by default").
+  // Elsewhere, whole shares only.
+  // A short is held in whole shares: never a part share bought back.
+  const shares = partsOutside && long ? Number(wanted.toFixed(9)) : Math.floor(wanted + 1e-9);
+  if (!(shares > 0)) return { ok: false, reason: "Outside regular hours Alpaca trades only whole shares of this one, and this exit is less than one." };
   const notes = [
     near == null && ref ? `limit ${Math.round(EXIT_THROUGH * 100)}% ${long ? "under" : "over"} the last price ${round(ref)}${seen.length ? `; the ${word} seen (${round(seen[0])}) was too far from it to be the market` : ""}` : null,
-    shares < wanted - 1e-9 ? `${shares} whole shares (part of a share cannot trade outside regular hours)` : null
+    shares < wanted - 1e-9 ? `${shares} whole shares (Alpaca trades no part share of this one outside regular hours)` : null
   ].filter(Boolean);
   return {
     ok: true, how: "limit", side: long ? "sell" : "buy", qty: shares, limitPrice: round(price),
