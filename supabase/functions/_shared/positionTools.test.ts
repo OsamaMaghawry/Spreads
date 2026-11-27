@@ -105,6 +105,12 @@ test("exits: the broker's close in the session; a limit at the bid or ask outsid
   assert.match(why(long, { all: false, qty: 0 }, "regular", {}), /Nothing to exit/);
   assert.match(why(long, all, "extended", {}), /No bid/);
   assert.match(why({ ...long, qty: 1 }, { all: false, qty: 0.5 }, "extended", { bid: 10, ref: 10 }), /less than one/);
+  // Where Alpaca trades part shares outside regular hours (27 Nov): the exact part, as a limit.
+  const part = exitPlan({ ...long, qty: 0.6 }, all, "extended", { bid: 10, ref: 10 }, false, true) as any;
+  assert.deepEqual([part.how, part.qty, part.limitPrice, part.note], ["limit", 0.6, 10, null]);
+  const mixed = exitPlan({ ...long, qty: 7.5 }, { all: false, qty: 3.75 }, "extended", { bid: 10, ref: 10 }, false, true) as any;
+  assert.equal(mixed.qty, 3.75);
+  assert.equal((exitPlan({ ...short, qty: -5 }, { all: false, qty: 2.5 }, "extended", { bid: 10, ask: 10, ref: 10 }, false, true) as any).qty, 2);
 });
 
 test("exits outside regular hours: a bid far from the broker's mark is not the market (27 Oct, AIOK)", () => {

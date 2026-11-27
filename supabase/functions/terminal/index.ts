@@ -312,6 +312,8 @@ type Asset = {
   symbol: string; name: string; exchange: string; shortable: boolean; fractionable: boolean; assetClass: "us_equity" | "crypto";
   minOrderSize: number | null; minTradeIncrement: number | null; priceIncrement: number | null;
   options: boolean; easyToBorrow: boolean;
+  // Part shares outside regular hours too (Alpaca's fractional_eh_enabled).
+  fractionalEh: boolean;
 };
 let assets: Asset[] | null = null;
 let assetsAt = 0;
@@ -320,7 +322,8 @@ const shape = (a: any): Asset => ({
   symbol: a.class === "crypto" ? cryptoSymbol(a.symbol) : a.symbol, name: a.name || "", exchange: a.exchange || "",
   shortable: !!a.shortable, fractionable: !!a.fractionable, assetClass: a.class === "crypto" ? "crypto" : "us_equity",
   minOrderSize: num(a.min_order_size), minTradeIncrement: num(a.min_trade_increment), priceIncrement: num(a.price_increment),
-  options: Array.isArray(a.attributes) && a.attributes.includes("has_options"), easyToBorrow: !!a.easy_to_borrow
+  options: Array.isArray(a.attributes) && a.attributes.includes("has_options"), easyToBorrow: !!a.easy_to_borrow,
+  fractionalEh: !!a.fractionable && (a.fractional_eh_enabled ?? true) !== false
 });
 
 async function assetList(account: any): Promise<Asset[]> {
@@ -3262,7 +3265,8 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
     positionOf(account, symbol),
     openOrdersFor(account, symbol),
     partial ? alpacaFetch(`${tradingBase(account)}/account/activities/FILL?direction=desc&page_size=100`, account).catch(() => []) : Promise.resolve([]),
-    partial && crypto ? assetFor(account, symbol) : Promise.resolve(null),
+    // A coin's steps; a share's part-share rule outside regular hours.
+    (partial && crypto) || (!crypto && session !== "regular") ? assetFor(account, symbol) : Promise.resolve(null),
     // Overnight, the quote from Alpaca's overnight venue only; the
     // consolidated one stops at 20:00, so it is never a stand-in
     // (head-of-trading W46-F3).
@@ -3291,7 +3295,7 @@ async function exitPosition(admin: any, user: any, account: any, input: any) {
   const plan = exitPlan(pos, amount, session, {
     // Overnight the screen's quote is the one from 20:00, so only the overnight venue's counts.
     bid: num((quote as any).bp), ask: num((quote as any).ap), ref: pos.last, live: overnight ? {} : { bid: num(input?.bid), ask: num(input?.ask) }, overnight
-  }, crypto);
+  }, crypto, !crypto && !!asset?.fractionalEh);
   if (!plan.ok) return { status: 400, body: { error: plan.reason } };
   // Every other working order on the symbol holds shares the exit needs. A
   // partial exit hands the old stop's price back, for the browser to put the
