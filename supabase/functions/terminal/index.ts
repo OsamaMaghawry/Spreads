@@ -3203,6 +3203,7 @@ async function protect(admin: any, user: any, account: any, input: any) {
   let stop = have.stop;
   let target = have.target;
   let note: string | null = null;
+  let warning: string | null = null;
   if (kind !== "target") {
     const plan = stopPlan(pos, kind === "both" ? { mode: "price" as const, value: Number(input.stopPrice), from } : measure, crypto);
     if (!plan.ok) return { status: 400, body: { error: plan.reason } };
@@ -3257,18 +3258,21 @@ async function protect(admin: any, user: any, account: any, input: any) {
   // The part share left over: its own stop, after the pair is in.
   if (partLeft > 0) {
     const sign = pos.side === "short" ? -1 : 1;
-    const part = stopPlan({ ...now, qty: sign * partLeft, qtyText: String(partLeft) }, { mode: "price", value: stop! }, false);
-    const partBuilt = part.ok ? await stopBody(account, symbol, part, String(partLeft), partLeft) : { ok: false as const, reason: part.reason };
+    const partText = partLeft.toFixed(9).replace(/0+$/, "").replace(/\.$/, "");
+    const part = stopPlan({ ...now, qty: sign * partLeft, qtyText: partText }, { mode: "price", value: stop! }, false);
+    const partBuilt = part.ok ? await stopBody(account, symbol, { ...part, qty: Number(partText) }, partText, partLeft) : { ok: false as const, reason: part.reason };
     const partSent: any = partBuilt.ok ? await sendBody(admin, user, account, "protect", partBuilt.body) : { error: partBuilt.reason };
-    note = [note, partSent.error
-      ? `the stop and target cover ${wholeHeld} shares; the ${partLeft} part share has no stop: ${partSent.error}`
-      : `the stop and target cover ${wholeHeld} shares; the ${partLeft} part share has the stop alone, for today`].filter(Boolean).join("; ");
+    // The pair's stop is good till cancelled: only the part share's lasts for today.
+    if (partSent.error) warning = `${symbol}: the ${partText} part share has no stop (${partSent.error}). Set it again.`;
+    note = [partSent.error
+      ? `the stop and target cover ${wholeHeld} shares; the ${partText} part share has no stop: ${partSent.error}`
+      : `the stop and target cover ${wholeHeld} shares; the ${partText} part share has the stop alone, for today`].filter(Boolean).join("; ");
   }
   // The position's stop, for its trade's initial stop (the Playbook).
   if (stop) inBackground(writeMark(admin, { account_id: account.id, order_id: String(sent.order.id), user_id: user.id, symbol, kind: "stop", stop, play_id: null }));
   return {
     status: 200,
-    body: { orderId: sent.order.id, status: sent.order.status, kind, stopPrice: stop, targetPrice: target, limitPrice, qty: held, side: closing, replaced: have.ids.length, paired: !!(stop && target), note }
+    body: { orderId: sent.order.id, status: sent.order.status, kind, stopPrice: stop, targetPrice: target, limitPrice, qty: partLeft > 0 ? wholeHeld : held, side: closing, replaced: have.ids.length, paired: !!(stop && target), note, warning }
   };
 }
 

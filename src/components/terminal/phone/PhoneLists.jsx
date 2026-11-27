@@ -50,6 +50,7 @@ export async function sendExits({ symbol, cur, d, getCtx, notify, refresh }) {
   if (r.error) notify({ key: `px${Date.now()}`, tone: "bad", title: `${symbol} exits not changed`, detail: r.error });
   else {
     const day = exitsNotes(r);
+    if (r.warning) notify({ key: `pxw${Date.now()}`, tone: "bad", title: `${symbol}: part share without a stop`, detail: r.warning });
     notify({ key: `px${Date.now()}`, tone: "ok", title: `${symbol} exits set`, detail: said + (r.group?.some((g) => g.ok === false) ? " · not on every account: see Orders" : "") + (day ? ` · ${day}` : "") });
   }
   refresh?.();
