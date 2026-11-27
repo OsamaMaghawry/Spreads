@@ -10,6 +10,12 @@ smallest test that could disprove it, the kill criterion, and a cost guess.
 
 Last run: **2026-09-01** (vp-product, Tuesday cadence).
 
+End-of-day reconcile **2026-11-27**: nothing shipped against #1–#3. Today's code
+(terminal exits, chart handles, hours switch) is staging-only and outside the
+screener; main got content only. `ResultsTable.jsx` on staging still shows no
+bid/ask width, no POP, and no `scan_runs` table exists. All three stand as
+written; ranking is Tuesday's.
+
 ## Open proposals
 
 **Three of five slots used.** Two deliberately left empty — this run killed one
