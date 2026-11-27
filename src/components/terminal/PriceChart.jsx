@@ -1192,13 +1192,21 @@ function PriceChart({
             </optgroup>
           ))}
         </select>
+        {/* On a phone the hours switch stays in the first row (27 Nov, the owner:
+            "Is the extended hours chart in the phone version, I can't get it"). */}
+        {phone && !crypto && !["1Day", "1Week", "1Month"].includes(interval) && (
+          <button type="button" onClick={() => setSession(session === "regular" ? "all" : "regular")} aria-pressed={session === "all"}
+            className={`rounded px-2 py-0.5 text-xs font-medium ${session === "all" ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600"}`}>
+            {session === "all" ? "Ext hours" : "Reg hours"}
+          </button>
+        )}
         {phone && (
           <button type="button" onClick={() => setPhoneTools((v) => !v)} aria-expanded={phoneTools}
             className={`ml-auto rounded px-2 py-0.5 text-xs font-medium ${phoneTools ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600"}`}>Tools</button>
         )}
         {phone && phoneTools && <div className="h-0 basis-full" />}
         {(!phone || phoneTools) && (<>
-        {!crypto && !["1Day", "1Week", "1Month"].includes(interval) && compact && (
+        {!crypto && !["1Day", "1Week", "1Month"].includes(interval) && compact && !phone && (
           <button type="button" onClick={() => setSession(session === "regular" ? "all" : "regular")} title={session === "regular" ? "Regular hours (9:30 to 16:00 New York). Click for all hours." : "All hours, pre-market and after hours shaded. Click for regular hours."}
             className="rounded border border-slate-200 px-1 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100">{session === "regular" ? "Reg" : "All"}</button>
         )}
