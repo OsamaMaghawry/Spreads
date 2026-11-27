@@ -1,0 +1,26 @@
+<svg viewBox="0 0 720 240" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="A number line of call minus put for the hypothetical XYZ 50 strike. Selling the synthetic at the bid and ask brings in 0.27, parity sits at 0.33, and buying the synthetic costs 0.39. The shaded stretch from 0.27 to 0.39 is the band the bid-ask spread creates around the one parity value.">
+  <rect width="720" height="240" fill="#FFFFFF"/>
+
+  <text x="60" y="40" font-size="16" font-weight="600" fill="#767B8E">call minus put, 50 strike</text>
+
+  <!-- axis -->
+  <line x1="80" y1="140" x2="640" y2="140" stroke="#767B8E" stroke-width="2"/>
+
+  <!-- band between the two natural prices -->
+  <rect x="237" y="118" width="269" height="44" fill="#B4485C" fill-opacity="0.14"/>
+
+  <!-- sell synthetic at 0.27 -->
+  <line x1="237" y1="110" x2="237" y2="170" stroke="#B4485C" stroke-width="2.5"/>
+  <text x="237" y="98" font-size="16" font-weight="600" text-anchor="middle" fill="#B4485C">sell synthetic</text>
+  <text x="237" y="194" font-size="16" text-anchor="middle" fill="#14151C">0.27</text>
+
+  <!-- parity at 0.33 -->
+  <line x1="371" y1="100" x2="371" y2="180" stroke="#2E8B5F" stroke-width="3"/>
+  <text x="371" y="88" font-size="17" font-weight="600" text-anchor="middle" fill="#2E8B5F">parity</text>
+  <text x="371" y="204" font-size="16" font-weight="600" text-anchor="middle" fill="#2E8B5F">0.33</text>
+
+  <!-- buy synthetic at 0.39 -->
+  <line x1="506" y1="110" x2="506" y2="170" stroke="#B4485C" stroke-width="2.5"/>
+  <text x="506" y="98" font-size="16" font-weight="600" text-anchor="middle" fill="#B4485C">buy synthetic</text>
+  <text x="506" y="194" font-size="16" text-anchor="middle" fill="#14151C">0.39</text>
+</svg>

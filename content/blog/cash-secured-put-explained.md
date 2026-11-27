@@ -165,6 +165,8 @@ first, call second, on the same underlying stock. The [wheel
 strategy](/blog/wheel-strategy-explained) follows this same 50 put past
 assignment and into a covered call on the shares it delivered.
 
+Related: [put-call parity explained with an option chain](/blog/put-call-parity) shows why a cash-secured put and a covered call on one strike have the same payoff at expiration, once interest on the cash is counted.
+
 ## Frequently asked questions
 
 - **Is the premium kept if a cash-secured put is assigned?** Yes; it was paid at the fill, before assignment is even possible.
