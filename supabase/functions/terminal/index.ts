@@ -3136,7 +3136,9 @@ async function positionOf(account: any, symbol: string) {
   const p = (Array.isArray(list) ? list : []).find((x: any) => ownSymbol(x) === symbol);
   if (!p) return null;
   return {
-    qty: num(p.qty) || 0, qtyText: String(p.qty_available ?? p.qty), available: Math.abs(num(p.qty_available ?? p.qty) || 0),
+    // The size as the broker writes it, without a short's minus sign (27 Nov:
+    // a target alone on 21 NVDA short went as qty "-21", refused "qty must be > 0").
+    qty: num(p.qty) || 0, qtyText: String(p.qty_available ?? p.qty).replace(/^-/, ""), available: Math.abs(num(p.qty_available ?? p.qty) || 0),
     side: p.side === "short" ? "short" as const : "long" as const, avgPrice: num(p.avg_entry_price), last: num(p.current_price)
   };
 }
