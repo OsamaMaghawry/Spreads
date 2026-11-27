@@ -100,6 +100,8 @@ be bought back for 0.40 at some point, the call spread on the same strikes
 would be worth about 1.60 at the same moment, so closing either one early
 produces a similar result, give or take the bid and ask on two more fills.
 
+Related: [put-call parity explained with an option chain](/blog/put-call-parity) works the same relationship on one strike, as a call, a put and 100 shares.
+
 These figures describe mechanics on an invented chain, not an outcome
 anyone should expect.
 

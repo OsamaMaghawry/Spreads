@@ -1,0 +1,34 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Three payoff panels at expiration for a hypothetical XYZ 50 strike. A long 50 call is flat below the strike and rises above it. A short 50 put falls below the strike and is flat above it. Added together they form one straight line rising through the strike, the same shape as owning 100 shares.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+
+  <!-- panel titles -->
+  <text x="130" y="40" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">long 50 call</text>
+  <text x="370" y="40" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">short 50 put</text>
+  <text x="610" y="40" font-size="17" font-weight="600" text-anchor="middle" fill="#14151C">synthetic long stock</text>
+
+  <!-- zero lines -->
+  <line x1="40" y1="150" x2="220" y2="150" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="280" y1="150" x2="460" y2="150" stroke="#C9CEDC" stroke-width="1.5"/>
+  <line x1="520" y1="150" x2="700" y2="150" stroke="#C9CEDC" stroke-width="1.5"/>
+
+  <!-- strike markers -->
+  <line x1="130" y1="60" x2="130" y2="240" stroke="#C9CEDC" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <line x1="370" y1="60" x2="370" y2="240" stroke="#C9CEDC" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <line x1="610" y1="60" x2="610" y2="240" stroke="#C9CEDC" stroke-width="1.5" stroke-dasharray="4 4"/>
+
+  <!-- long call: premium paid below, rises above -->
+  <polyline points="40,172 130,172 220,82" fill="none" stroke="#2E8B5F" stroke-width="3"/>
+
+  <!-- short put: falls below, premium kept above -->
+  <polyline points="280,222 370,132 460,132" fill="none" stroke="#B4485C" stroke-width="3"/>
+
+  <!-- synthetic: one straight line -->
+  <line x1="520" y1="243" x2="700" y2="63" stroke="#14151C" stroke-width="3"/>
+
+  <!-- operators -->
+  <text x="250" y="160" font-size="30" font-weight="600" text-anchor="middle" fill="#767B8E">+</text>
+  <text x="490" y="160" font-size="30" font-weight="600" text-anchor="middle" fill="#767B8E">=</text>
+
+  <!-- axis label -->
+  <text x="370" y="276" font-size="15" text-anchor="middle" fill="#767B8E">XYZ at expiration</text>
+</svg>
