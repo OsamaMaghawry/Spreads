@@ -35,7 +35,8 @@ import SymbolSearch from "@/components/terminal/SymbolSearch";
 import PhoneTerminal from "@/components/terminal/phone/PhoneTerminal";
 import PhoneReplay from "@/components/terminal/phone/PhoneReplay";
 import useAccountSetting from "@/components/terminal/useAccountSetting";
-import { cleanSizes, cleanTicks, sendPlan } from "@/lib/accountGroup";
+import { cleanSizes, cleanTicks, sendPlan, orderBlocks } from "@/lib/accountGroup";
+import useTradeLines from "@/components/terminal/useTradeLines";
 import { acctIn, replayClock, isCalendar } from "@/lib/replay";
 import { GEX_LINES_DEFAULT, cleanGexLines } from "@/lib/gexChart";
 
@@ -682,6 +683,15 @@ export default function Terminal() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [hotkeysOn, page, hotkeysOpen, replay]);
 
+  // The desktop chart's position, stop, target and working orders, with
+  // handles to drag them, as on the phone (27 Nov); the phone keeps its own.
+  const deskBlocks = useMemo(() => orderBlocks([
+    { accountId: account?.id, name: account?.name || "This account", live: account?.type === "Live", orders: view?.orders || [] },
+    ...others.filter((g) => g.accountId !== account?.id).map((g) => ({ accountId: g.accountId, name: g.name, live: !!g.live, orders: g.orders || [] }))
+  ]), [account, view?.orders, others]);
+  const deskTo = useMemo(() => [...(plan.leadOff || !account ? [] : [account]), ...plan.group.map((g) => accounts.find((a) => a.id === g.id)).filter(Boolean)]
+    .map((a) => `${a.name}${a.type === "Live" ? " (live)" : ""}`), [accounts, plan, account]);
+  const desk = useTradeLines({ symbol, view, blocks: deskBlocks, getCtx: () => live$.current, notify, refresh: refreshAll, to: deskTo, off: phone || replaying || page !== "trade" });
   // The chart panel's parts, shared by the desktop grid and the phone.
   const replayFormEl = (
 replayForm && !replaying && (
@@ -994,11 +1004,12 @@ session && (
             {replayFormEl}
             {replayOfferEl}
             {replayBarEl}
+            {desk.pending}
             <div className={`grid min-h-0 flex-1 gap-px bg-slate-200 ${PANE_GRID[panes.list.length]}`}>
               {panes.list.map((p, i) => (
                 <div key={i} onClickCapture={() => { if (panes.active !== i) setPanes((x) => ({ ...x, active: i })); }}
                   className={`min-h-0 min-w-0 overflow-hidden bg-white ${panes.list.length === 3 && i === 0 ? "col-span-2" : ""} ${panes.list.length > 1 && panes.active === i ? "outline outline-2 -outline-offset-2 outline-emerald-500" : ""}`}>
-                  {chartPane(p, i)}
+                  {chartPane(p, i, p.symbol === symbol && desk.tradeLines ? { tradeLines: desk.tradeLines, onLineMove: desk.onLineMove } : {})}
                 </div>
               ))}
             </div>
