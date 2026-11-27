@@ -96,6 +96,8 @@ stood alone:
 - **Both legs in one account.** A long put elsewhere offsets nothing.
 - **The long leg lasts at least as long.** One that expires first cannot cover the short afterwards, which is why most credit spreads use one expiration.
 
+Related: [options approval levels](/blog/options-approval-levels) covers the tier a broker commonly requires before it accepts a spread order at all.
+
 ## What do covered calls and naked options hold?
 
 A **covered call** is a short call written against 100 shares already in the

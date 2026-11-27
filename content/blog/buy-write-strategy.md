@@ -2,7 +2,7 @@
 title: "Buy-write strategy: buying shares and selling the call in one order"
 slug: buy-write-strategy
 excerpt: A buy-write buys 100 shares and sells a call against them in one order at one net price, and once filled it is a covered call with a new lot of shares underneath.
-meta_description: "Buy-write strategy on one hypothetical stock: one net debit, the break-even and cap, the price risk of legging in, and which lot is called away."
+meta_description: "Buy write options: buy 100 shares and sell one call in one order at one net debit. On a hypothetical stock: the break-even, the cap, and legging in."
 search_title: "Buy Write Options: One Order for Shares and the Call"
 author: Osama Safwat Maghawry
 category: investing

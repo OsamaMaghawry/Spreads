@@ -115,6 +115,8 @@ ex-dividend date, when the dividend exceeds the call's remaining extrinsic
 value. How the notice arrives is in the [assignment
 post](/blog/option-assignment-what-happens).
 
+Related: [put-call parity](/blog/put-call-parity) shows why a covered call and a cash-secured put at the same strike have the same payoff at expiration on a hypothetical chain with no dividend, once interest on the cash is counted.
+
 ## The premium lowers the break-even, not the reported cost basis
 
 It is common to hear that a covered call's premium "lowers your cost basis."
