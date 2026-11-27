@@ -3216,8 +3216,17 @@ async function protect(admin: any, user: any, account: any, input: any) {
   }
   // Checked before anything is cancelled, so a refusal leaves the old exits working.
   const held = Math.abs(pos.qty);
+  // Part of a share with a stop and a target (27 Nov, TQQQ: "exits not
+  // changed"): Alpaca pairs whole shares only, so the whole shares take the
+  // pair and the part share left over takes the stop alone (for today, as a
+  // part-share stop is). Under one share, one exit only: said, nothing cancelled.
+  const wholeHeld = Math.floor(held + 1e-9);
+  const partLeft = !crypto && stop && target ? Number((held - wholeHeld).toFixed(9)) : 0;
+  if (partLeft > 0 && wholeHeld < 1) {
+    return { status: 400, body: { error: `Under one share of ${symbol}, Alpaca holds one exit order: a stop or a target. Keep one; your current exits are unchanged.` } };
+  }
   if (stop && target) {
-    const check = exitBody(symbol, closing, held, { stop, target }, "check", { crypto });
+    const check = exitBody(symbol, closing, partLeft > 0 ? wholeHeld : held, { stop, target }, "check", { crypto });
     if (!check.ok) return { status: 400, body: { error: check.reason } };
   }
   if (!(await cancelAndWait(account, symbol, have.ids))) {
@@ -3237,12 +3246,24 @@ async function protect(admin: any, user: any, account: any, input: any) {
     if (!plan.ok) return { status: 400, body: { error: plan.reason } };
     limitPrice = plan.limitPrice;
     built = await stopBody(account, symbol, plan, now.qtyText, now.available);
+  } else if (partLeft > 0) {
+    built = exitBody(symbol, closing, wholeHeld, { stop, target }, `TERM_${Date.now()}`, { crypto });
   } else {
     built = exitBody(symbol, closing, held, { stop, target }, `TERM_${Date.now()}`, { crypto, qtyText: now.qtyText });
   }
   if (!built.ok) return { status: 400, body: { error: built.reason } };
   const sent = await sendBody(admin, user, account, "protect", built.body);
   if (sent.error) return { status: 422, body: { error: sent.error } };
+  // The part share left over: its own stop, after the pair is in.
+  if (partLeft > 0) {
+    const sign = pos.side === "short" ? -1 : 1;
+    const part = stopPlan({ ...now, qty: sign * partLeft, qtyText: String(partLeft) }, { mode: "price", value: stop! }, false);
+    const partBuilt = part.ok ? await stopBody(account, symbol, part, String(partLeft), partLeft) : { ok: false as const, reason: part.reason };
+    const partSent: any = partBuilt.ok ? await sendBody(admin, user, account, "protect", partBuilt.body) : { error: partBuilt.reason };
+    note = [note, partSent.error
+      ? `the stop and target cover ${wholeHeld} shares; the ${partLeft} part share has no stop: ${partSent.error}`
+      : `the stop and target cover ${wholeHeld} shares; the ${partLeft} part share has the stop alone, for today`].filter(Boolean).join("; ");
+  }
   // The position's stop, for its trade's initial stop (the Playbook).
   if (stop) inBackground(writeMark(admin, { account_id: account.id, order_id: String(sent.order.id), user_id: user.id, symbol, kind: "stop", stop, play_id: null }));
   return {
