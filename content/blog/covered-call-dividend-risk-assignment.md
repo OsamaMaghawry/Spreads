@@ -1,7 +1,7 @@
 ---
 title: "Covered call dividend risk: when a short call is assigned early"
 slug: covered-call-dividend-risk-assignment
-search_title: "Covered Call Dividend Risk: Assignment Before Ex-Dividend"
+search_title: "Will a Covered Call Be Assigned Before the Ex Dividend Date?"
 excerpt: A short call is most likely to be assigned early the evening before an ex-dividend date, when the dividend is larger than the extrinsic value left in the call.
 meta_description: "Covered call dividend risk: when a dividend beats a short call's extrinsic value, assignment is likely the day before the ex-date. Who loses it, who owes it."
 author: Osama Safwat Maghawry
