@@ -36,6 +36,8 @@ The account sold one 30-day 50 put for 2.29 with XYZ at $50, backed by $5,000 in
 
 A same-strike roll is a calendar spread run backwards. A [calendar spread](/blog/calendar-spread-explained) buys the later option and sells the nearer one, which costs money. A roll buys the nearer one and sells the later one, which pays money, because the later put holds more time value. It is the same pair of options with the opposite sides.
 
+Related: a roll on one ticket is a two-leg order with one net price, and [an options limit order not filling](/blog/options-limit-order-not-filling) covers why such an order at the mid can sit without a fill.
+
 ## Why is the credit on a roll not a profit?
 
 The 1.03 is what is left after the closing leg's cost is subtracted from the new option's price. The 1.01 loss on the old put is already in it. It was not erased; it was netted away inside the arithmetic of the ticket.

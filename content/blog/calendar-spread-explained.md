@@ -76,6 +76,8 @@ Below the strike the short call expires worthless and the long call loses value 
 
 The break-evens fall at about 46.70 and 53.80, found by pricing each stock price at 40%. Between them the spread is ahead of the debit. A reader who knows the [credit spread](/blog/credit-spread-max-loss) will notice what is missing: no strike fixes the maximum gain. The peak is a model result at one implied volatility, which is the next section's subject.
 
+Related: an [iron butterfly](/blog/iron-butterfly-explained) also does best with the stock at one strike, but there the most it can make is the credit, fixed when the trade opens.
+
 ## How does implied volatility change a calendar spread?
 
 The far call has more time left, so it carries more vega, the price change per point of implied volatility, than the near call. At the start the far leg's vega is about 0.081 per point and the near leg's about 0.057, so the spread is net long about 0.0235 per share, roughly $2.35 per spread for each point. A credit spread keeps both legs on one date, so their vega largely offsets.
