@@ -105,7 +105,7 @@ Delta is a snapshot at one stock price and one date. The 46 put keeps its strike
 | --- | --- | --- | --- | --- |
 | Delta | −0.13 | −0.22 | −0.33 | −0.48 |
 
-Time moves it as well. With the stock still at $50, the same 46 put shows −0.22 with 30 days left, −0.14 with 15 and −0.06 with 7. Both effects come from the same place: delta measures how close the strike is to the stock, in units of how far the stock is expected to travel, and either input can change that. The rate at which delta moves is its own number, [gamma](/blog/gamma-options-meaning), and it is largest when a short strike is close to the stock and the expiration is near.
+Time moves it as well. With the stock still at $50, the same 46 put shows −0.22 with 30 days left, −0.14 with 15 and −0.06 with 7. Both effects come from the same place: delta measures how close the strike is to the stock, in units of [how far the stock is expected to travel](/blog/expected-move-options), and either input can change that. The rate at which delta moves is its own number, [gamma](/blog/gamma-options-meaning), and it is largest when a short strike is close to the stock and the expiration is near.
 
 The practical consequence is about the word "chosen". A strike picked at 0.22 delta on the day of the fill is a statement about that day. After a $2 fall in the stock the short put in this example shows −0.33, and a trader reading the label again is looking at a different position than the one described at the fill. The [bid-ask post](/blog/options-bid-ask-spread) is the reminder that the price attached is a quote, and so is the delta calculated from it.
 

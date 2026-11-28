@@ -1,0 +1,31 @@
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="Four ranges around a hypothetical XYZ stock at 50, drawn on one price line from 45 to 55. The implied volatility formula gives plus or minus 4.30, from 45.70 to 54.30. The at-the-money straddle gives plus or minus 3.43. The weighted strangle gives plus or minus 2.99. Eighty-five percent of the straddle gives plus or minus 2.92. A dashed line at the 46 strike falls inside the widest range and outside the other three.">
+  <rect width="720" height="300" fill="#FFFFFF"/>
+
+  <!-- 46 strike marker -->
+  <line x1="136" y1="36" x2="136" y2="262" stroke="#B4485C" stroke-width="2" stroke-dasharray="6 5"/>
+
+  <!-- IV formula: 45.70 to 54.30 -->
+  <text x="360" y="50" font-size="16" font-weight="600" text-anchor="middle" fill="#14151C">IV formula ±4.30</text>
+  <rect x="119" y="58" width="482" height="20" rx="3" fill="#14151C" fill-opacity="0.78"/>
+
+  <!-- straddle: 46.57 to 53.43 -->
+  <text x="360" y="106" font-size="16" font-weight="600" text-anchor="middle" fill="#767B8E">straddle ±3.43</text>
+  <rect x="168" y="114" width="384" height="20" rx="3" fill="#767B8E" fill-opacity="0.55"/>
+
+  <!-- weighted strangle: 47.01 to 52.99 -->
+  <text x="360" y="162" font-size="16" font-weight="600" text-anchor="middle" fill="#767B8E">weighted strangle ±2.99</text>
+  <rect x="193" y="170" width="335" height="20" rx="3" fill="#767B8E" fill-opacity="0.55"/>
+
+  <!-- 85% of straddle: 47.08 to 52.92 -->
+  <text x="360" y="218" font-size="16" font-weight="600" text-anchor="middle" fill="#767B8E">85% of straddle ±2.92</text>
+  <rect x="196" y="226" width="327" height="20" rx="3" fill="#767B8E" fill-opacity="0.55"/>
+
+  <!-- price axis -->
+  <line x1="80" y1="262" x2="640" y2="262" stroke="#767B8E" stroke-width="2"/>
+  <line x1="360" y1="40" x2="360" y2="262" stroke="#14151C" stroke-width="1.5" stroke-opacity="0.35"/>
+  <line x1="360" y1="262" x2="360" y2="270" stroke="#767B8E" stroke-width="2"/>
+  <line x1="584" y1="262" x2="584" y2="270" stroke="#767B8E" stroke-width="2"/>
+  <text x="136" y="288" font-size="16" font-weight="600" text-anchor="middle" fill="#B4485C">46</text>
+  <text x="360" y="288" font-size="16" text-anchor="middle" fill="#14151C">50</text>
+  <text x="584" y="288" font-size="16" text-anchor="middle" fill="#14151C">54</text>
+</svg>

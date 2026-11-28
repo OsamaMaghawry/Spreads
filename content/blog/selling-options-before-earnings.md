@@ -28,6 +28,8 @@ An earnings date is on the calendar weeks ahead, and its outcome is unknown unti
 
 The size of the run-up is visible on the chain. The price of an at-the-money call and put on the same expiration added together, the straddle price, is a rough market estimate of how far the stock may move by that expiration, the announcement plus the ordinary days, in dollars. A wider straddle means a larger priced-in move and a fatter premium for the seller, but it is an estimate of size, not of direction, and the actual move can land well inside it or far outside it.
 
+Related: [the expected move](/blog/expected-move-options) works the straddle against the implied volatility formula on one chain, and shows why the two ranges differ.
+
 The worked example is the hypothetical XYZ used across this series, trading at $50. The company reports after the close, and the expiration is a week later. Prices come from a Black-Scholes fit with no interest rate and no dividend, so each is a model's estimate, not a quote. Every price is a per-share mark, and fills are assumed at the mark; one contract is 100 shares.
 
 The afternoon before the report, the 8-day options are priced at 80% implied volatility. Without the event they would sit near the 40% this series has used throughout. The difference is what the date added:

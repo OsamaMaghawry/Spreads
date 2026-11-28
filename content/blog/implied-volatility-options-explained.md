@@ -163,6 +163,8 @@ prices that have already printed. Whether that lands above or below what was
 implied is unknown at the time the premium is agreed, which is the whole
 reason the premium is negotiated at all.
 
+Related: [the expected move](/blog/expected-move-options) turns an implied volatility figure into a dollar range for one expiration, and shows why that range is a price, not a forecast.
+
 ## Frequently asked questions
 
 - **Does implied volatility scale by 100 like the premium?** No. It is an annualised percentage that already applies to the whole quote; vega, delta and the premium itself are the figures quoted per share and multiplied by 100 for one contract.

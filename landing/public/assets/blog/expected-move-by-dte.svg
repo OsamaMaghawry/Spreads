@@ -1,0 +1,25 @@
+<svg viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Sans', system-ui, sans-serif" role="img" aria-label="The one standard deviation expected move of a hypothetical 50 dollar stock at 30 percent implied volatility, by days to expiration. Sixty days gives plus or minus 6.08, thirty days 4.30, fifteen days 3.04, seven days 2.08 and one day 0.79. A quarter of the time gives half the move, not a quarter of it.">
+  <rect width="720" height="280" fill="#FFFFFF"/>
+
+  <line x1="200" y1="30" x2="200" y2="262" stroke="#767B8E" stroke-width="2"/>
+
+  <text x="180" y="57" font-size="16" text-anchor="end" fill="#767B8E">60 days</text>
+  <rect x="200" y="40" width="420" height="26" rx="3" fill="#14151C" fill-opacity="0.78"/>
+  <text x="632" y="58" font-size="16" font-weight="600" fill="#14151C">±6.08</text>
+
+  <text x="180" y="103" font-size="16" text-anchor="end" fill="#767B8E">30 days</text>
+  <rect x="200" y="86" width="297" height="26" rx="3" fill="#14151C" fill-opacity="0.78"/>
+  <text x="509" y="104" font-size="16" font-weight="600" fill="#14151C">±4.30</text>
+
+  <text x="180" y="149" font-size="16" text-anchor="end" fill="#767B8E">15 days</text>
+  <rect x="200" y="132" width="210" height="26" rx="3" fill="#14151C" fill-opacity="0.78"/>
+  <text x="422" y="150" font-size="16" font-weight="600" fill="#14151C">±3.04</text>
+
+  <text x="180" y="195" font-size="16" text-anchor="end" fill="#767B8E">7 days</text>
+  <rect x="200" y="178" width="144" height="26" rx="3" fill="#14151C" fill-opacity="0.78"/>
+  <text x="356" y="196" font-size="16" font-weight="600" fill="#14151C">±2.08</text>
+
+  <text x="180" y="241" font-size="16" text-anchor="end" fill="#767B8E">1 day</text>
+  <rect x="200" y="224" width="55" height="26" rx="3" fill="#14151C" fill-opacity="0.78"/>
+  <text x="267" y="242" font-size="16" font-weight="600" fill="#14151C">±0.79</text>
+</svg>
